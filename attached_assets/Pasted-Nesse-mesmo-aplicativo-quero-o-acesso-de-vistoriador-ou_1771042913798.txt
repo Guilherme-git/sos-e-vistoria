@@ -1,0 +1,234 @@
+Nesse mesmo aplicativo, quero o acesso de vistoriador, ou seja antes mesmo do login, escolher se é vistoriador ou guincheiro. Caso escolher guincheiro, continua nessa tela que vc já fez, caso escolher vistoria, aplicar as telas abaixo seguindo o mesmo padrão de layout do guincheiro, o prompt abaixo é algo mais ou menos oque espero, mas sigo o padrão já criado
+
+PROMPT PARA CRIAÇÃO DE DESIGN DE APLICATIVO DE VISTORIA
+
+  IMPORTANTE: Crie designs elegantes e modernos seguindo rigorosamente a paleta de cores especificada abaixo.
+
+  PALETA DE CORES DO APLICATIVO:
+
+  Cores Principais:
+  - Verde Principal: #007E5E
+  - Verde Claro: #02B88A
+  - Verde Escuro: #01513D
+  - Laranja (Secundária): #FFA300
+
+  Cores de Status:
+  - Erro/Vermelho: #F44336
+  - Sucesso/Verde: #0FA719
+  - Aviso/Amarelo: #F39C11
+  - Informação/Azul: #1E88E5
+
+  Cores de Interface:
+  - Fundo Principal: #F7F5F5 (cinza muito claro)
+  - Superfície/Cards: #FFFFFF (branco)
+  - Texto Principal: #1E1E1E (preto suave)
+  - Texto Secundário: #6E6E6E (cinza médio)
+  - Divisor: #C2BFBF (cinza claro)
+  - Cinza Claro: #D5D3D3
+
+  ---
+  FLUXO DE TELAS DO APLICATIVO:
+
+  TELA 1: Login - Passo 1 (Entrada do CPF)
+
+  Descrição: Tela de autenticação inicial
+  Elementos:
+  - Logo do aplicativo centralizado no topo
+  - Banner/imagem de boas-vindas
+  - Texto "Bem-vindo," em cinza secundário (#6E6E6E)
+  - Título "Faça seu Login" em negrito
+  - Campo de entrada de CPF com máscara (XXX.XXX.XXX-XX)
+  - Botão primário "Entrar" com cor verde principal (#007E5E)
+  - Ícone de voltar (quando no passo 2)
+
+  Estilo: Design limpo e minimalista, com bastante espaço em branco
+
+  ---
+  TELA 2: Login - Passo 2 (Entrada da Senha)
+
+  Descrição: Segunda etapa do login
+  Elementos:
+  - Texto centralizado "Agora insira sua senha de acesso:"
+  - Ícone de cadeado em círculo preto (#0E0E0E) no centro com tamanho destacado
+  - Texto de instrução em cinza: "Caso não tenha uma senha definida, insira os 6 primeiros dígitos do seu CPF"
+  - Campo de senha (obscured text)
+  - Botão primário "Entrar" em verde (#007E5E)
+
+  Estilo: Focado em segurança, com ícone de cadeado proeminente
+
+  ---
+  TELA 3: Dashboard - Home
+
+  Descrição: Tela principal após login, mostra status de chamados
+  Elementos:
+  - Barra de navegação inferior curva (CurvedNavigationBar) em cinza claro (#D5D3D3)
+  - 3 ícones na navegação: Moto (Home), Cifrão (Pagamentos), Pessoa (Perfil)
+  - Onda decorativa no topo com gradiente verde claro (#02B88A)
+  - Imagem/ilustração "Nenhum Chamado" centralizada
+  - Título "Nenhum Chamado" em negrito
+  - Subtítulo "Não há chamados para exibir no momento" em cinza secundário
+  - Switch grande e destacado (1.2x escala) para ativar/desativar recebimento de chamados
+  - Texto do switch: "Receber Chamados" / "Não Receber Chamados"
+
+  Estilo: Design com onda decorativa no topo, visual acolhedor e clean
+
+  ---
+  TELA 4: Dashboard - Pagamentos
+
+  Descrição: Lista de pagamentos do vistoriador
+  Elementos:
+  - Barra de navegação inferior igual (ícone do meio destacado)
+  - Lista de pagamentos com cards
+  - Informações de status de pagamento
+  - Valores e datas
+
+  Estilo: Cards limpos com informações hierarquizadas
+
+  ---
+  TELA 5: Dashboard - Perfil
+
+  Descrição: Perfil do usuário vistoriador
+  Elementos:
+  - Barra de navegação inferior igual (último ícone destacado)
+  - Informações do usuário
+  - Opções de configuração
+  - Botão de logout
+
+  Estilo: Layout organizado com seções bem definidas
+
+  ---
+  TELA 6: Vistoria/Expertise - Informações do Chamado
+
+  Descrição: Detalhes do chamado de vistoria ativo
+  Elementos:
+  - Barra de navegação inferior curva com 3 ícones:
+    - Ícone de informação (Info)
+    - Ícone de formulário (cor dinâmica baseada no status da vistoria primária)
+    - Ícone de pessoa (cor dinâmica baseada no status da vistoria secundária)
+  - Informações do veículo
+  - Dados do associado
+  - Informações da ocorrência
+  - Status da vistoria (lista de etapas)
+
+  Estilo: Informativo, com cards organizados e ícones de status
+
+  IMPORTANTE: Esta tela NÃO pode ter botão voltar (PopScope com canPop: false)
+
+  ---
+  TELA 7: Vistoria/Expertise - Formulário Vistoria Primária
+
+  Descrição: Formulário de captura de fotos/vídeos do veículo principal
+  Elementos:
+  - Navegação inferior (ícone do meio destacado)
+  - Cards expansíveis para cada categoria de foto/vídeo:
+    - Lateral Direita
+    - Lateral Esquerda
+    - Frente
+    - Traseira
+    - Painel
+    - Hodômetro
+    - Vídeo da rua
+    - Gravação de áudio (depoimento)
+  - Cada card mostra status: pendente, em validação, aprovado, ou erro
+  - Botões de câmera/microfone em cada seção
+  - Indicadores visuais de progresso
+
+  Estilo: Cards com cores de status (verde para aprovado, vermelho para erro, amarelo para validação)
+
+  ---
+  TELA 8: Vistoria/Expertise - Formulário Vistoria Secundária
+
+  Descrição: Formulário de captura de dados do segundo veículo (se houver)
+  Elementos:
+  - Navegação inferior (último ícone destacado)
+  - Estrutura similar à Tela 7
+  - Cards para fotos do segundo veículo
+  - Campos específicos do segundo envolvido
+
+  Estilo: Consistente com a tela de vistoria primária
+
+  ---
+  TELA 9: Câmera - Captura de Foto
+
+  Descrição: Interface de câmera para tirar fotos
+  Elementos:
+  - Preview da câmera em tela cheia
+  - Instruções no topo (texto sobre overlay semi-transparente)
+  - Controles de zoom (+/-)
+  - Botão de flash
+  - Botão de captura circular grande (verde #007E5E)
+  - Miniaturas das fotos já capturadas na parte inferior
+  - Botão de confirmação/avançar
+
+  Estilo: Full screen com controles overlay, UI minimalista
+
+  Transição: Slide de baixo para cima com animação suave
+
+  ---
+  TELA 10: Câmera - Captura de Vídeo
+
+  Descrição: Interface de câmera para gravar vídeos
+  Elementos:
+  - Preview da câmera em tela cheia
+  - Instruções de gravação no topo
+  - Timer de gravação
+  - Botão de gravação (vermelho quando gravando)
+  - Controles de zoom
+  - Botão de flash
+  - Indicador visual de que está gravando
+
+  Estilo: Similar à tela de foto, com indicadores de gravação proeminentes
+
+  Transição: Slide de baixo para cima
+
+  ---
+  TELA 11: Player de Vídeo
+
+  Descrição: Visualização e revisão de vídeo gravado
+  Elementos:
+  - Player de vídeo em tela cheia
+  - Controles de play/pause
+  - Barra de progresso
+  - Botão de excluir vídeo
+  - Botão de confirmar/salvar
+
+  Estilo: Player padrão com controles claros
+
+  ---
+  DIRETRIZES DE DESIGN GERAIS:
+
+  1. Tipografia:
+    - Títulos em negrito (bold)
+    - Texto normal para corpo
+    - Boa hierarquia visual entre títulos e subtítulos
+  2. Espaçamento:
+    - Usar bastante espaço em branco
+    - Padding generoso em cards (16-24px)
+    - Margem entre elementos (10-30px)
+  3. Componentes:
+    - Botões primários: fundo verde (#007E5E), texto branco, cantos arredondados
+    - Botões secundários: contorno verde, texto verde
+    - Cards: fundo branco, sombra sutil, cantos arredondados (8-12px)
+    - Campos de input: borda cinza clara, fundo branco, foco em verde
+  4. Navegação:
+    - Usar CurvedNavigationBar (barra curva) em cinza claro (#D5D3D3)
+    - Ícones tamanho 30px
+    - Background da tela: branco ou cinza claro (#F7F5F5)
+  5. Ícones e Ilustrações:
+    - Usar ícones Material Design
+    - Ilustrações em estilo moderno e minimalista
+    - Cores consistentes com a paleta
+  6. Estados e Feedback:
+    - Verde (#0FA719) para sucesso/aprovado
+    - Vermelho (#F44336) para erro/reprovado
+    - Amarelo (#F39C11) para aviso/em validação
+    - Azul (#1E88E5) para informação
+  7. Acessibilidade:
+    - Contraste adequado entre texto e fundo
+    - Áreas de toque mínimas de 48x48dp
+    - Feedback visual claro em interações
+
+  ---
+  OBJETIVO FINAL: Criar um aplicativo de vistoria veicular moderno, profissional e fácil de usar, com foco na
+  experiência do vistoriador em campo. O design deve ser limpo, com hierarquia visual clara e cores que transmitam
+  confiança e profissionalismo.

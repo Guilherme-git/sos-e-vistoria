@@ -1,0 +1,595 @@
+PROMPT PARA CRIAÇÃO DE DESIGN DAS TELAS - APLICATIVO UTILIZA SOS (MOTORISTA DE GUINCHO)
+
+  📋 CONTEXTO DO APLICATIVO
+
+  Este é um aplicativo React Native para motoristas de guincho que permite:
+  - Login e autenticação
+  - Aceitar chamados de assistência
+  - Realizar vistorias com fotos
+  - Acompanhar timeline de serviços
+  - Geolocalização em tempo real
+
+  🎨 PALETA DE CORES (MANTER OBRIGATORIAMENTE)
+
+  Primary (Verde): #007E5E
+  Primary Light: #02B88A
+  Primary Dark: #01513D
+  Secondary (Laranja): #FFA300
+  Accent (Vermelho): #BA202A
+  Error: #D51A18
+  Success: #0FA719
+  Background: #FFFFFF
+  Text Primary: #1E1E1E
+  Text Secondary: #6E6E6E
+  Grey Light: #D5D3D3
+  Divider: #C2BFBF (60% opacity)
+
+  🔤 TIPOGRAFIA
+
+  - Fonte: Google Fonts - Be Vietnam Pro
+  - Tamanhos comuns:
+    - Títulos: 20-24px, Bold
+    - Subtítulos: 16-18px, SemiBold
+    - Body: 14-16px, Normal
+    - Captions: 12-14px, Normal
+
+  🎯 DIRETRIZES DE DESIGN
+
+  - Estilo: Moderno, limpo e elegante
+  - Componentes: Cards com bordas arredondadas (8-12px radius)
+  - Botões: Arredondados, altura 48-56px, com sombra sutil
+  - Espaçamento: Consistente (8px, 16px, 24px)
+  - Ícones: Material Design Icons, tamanho 20-30px
+  - Bottom Navigation: Curved Navigation Bar (arredondado no topo)
+  - Transições: Fade in (350ms)
+
+  ---
+  📱 MAPEAMENTO DAS TELAS E FLUXO
+
+  TELA 1 → LOGIN - ETAPA 1: CNPJ/CPF
+
+  Quando aparece: Primeira tela ao abrir o app (usuário não autenticado)
+
+  Layout:
+  - AppBar:
+    - Logo do app centralizado (170x170px)
+    - Altura 80px
+    - Sem botão voltar
+  - Conteúdo (PageView índice 0):
+    - Banner de boas-vindas no topo com degradê sutil
+    - Texto "Bem-vindo," (fonte 24px, bold, cor primary)
+    - Texto "Faça seu Login" (fonte 16px, cor secondary text)
+    - Dropdown Field:
+        - Label: "Acessar com:"
+      - Opções: "CNPJ" ou "CPF"
+      - Ícone dropdown à direita
+    - Campo de texto:
+        - Label dinâmico: "CNPJ" ou "CPF" (conforme seleção)
+      - Máscara: CNPJ (##.###.###/####-##) ou CPF (###.###.###-##)
+      - Ícone: documento à esquerda
+      - Teclado numérico
+      - Validação: campo obrigatório + formato válido
+    - Botão Primary:
+        - Label: "Entrar"
+      - Background: Primary (#007E5E)
+      - Largura total
+      - Altura 56px
+    - Link texto:
+        - "Ou cadastre-se aqui" (sublinhado, cor primary)
+      - Abre diálogo informativo
+  - Padding: 16px nas laterais
+
+  Após preenchimento:
+  → Se dispositivo já registrado: vai direto para TELA 3
+  → Senão: avança para TELA 1.2
+
+  ---
+  TELA 1.2 → LOGIN - ETAPA 2: SENHA/TOKEN
+
+  Quando aparece: Após validar CNPJ/CPF com sucesso (PageView índice 1)
+
+  Layout:
+  - AppBar:
+    - Botão voltar à esquerda (seta)
+    - Logo centralizado
+  - Conteúdo:
+    - Ícone de cadeado (SVG ou Material Icon, tamanho 80px, cor primary light)
+    - Texto instrucional:
+        - "Agora insira sua senha de acesso:" (18px, bold)
+      - "Caso não tenha uma senha definida, insira os 6 primeiros dígitos do seu CPF." (14px, cor secondary text,
+  italic)
+    - Campo de senha:
+        - Label: "Senha"
+      - Ícone: cadeado
+      - obscureText: true
+      - Validação: não pode ser vazio
+    - Botão Primary:
+        - Label: "Prosseguir"
+      - Background: Primary
+
+  Após preenchimento:
+  → Avança para TELA 1.3
+
+  ---
+  TELA 1.3 → LOGIN - ETAPA 3: REGISTRO DO MOTORISTA
+
+  Quando aparece: Após validar senha (PageView índice 2)
+
+  Layout:
+  - AppBar:
+    - Botão voltar à esquerda
+    - Logo centralizado
+  - Conteúdo:
+    - Texto "Complete seu cadastro" (20px, bold, primary)
+    - Texto "Preencha os dados abaixo" (14px, secondary text)
+    - Campos (todos obrigatórios):
+        i. CPF:
+            - Máscara: ###.###.###-##
+        - Ícone: documento
+        - Validação: CPF válido
+      ii. Nome:
+            - Capitalização automática
+        - Ícone: pessoa
+        - Validação: não vazio
+      iii. Telefone com DDD:
+            - Máscara: (##) #####-####
+        - Ícone: telefone
+        - Validação: telefone válido
+    - Botão Primary:
+        - Label: "Entrar"
+      - Background: Primary
+
+  Após preenchimento:
+  → Login realizado, navega para TELA 3 (DASHBOARD)
+
+  ---
+  TELA 2 → SPLASH/LOADING (Implícita)
+
+  Quando aparece: Durante carregamento de dados
+
+  Layout:
+  - Tela cheia com cor de fundo branca
+  - Logo centralizado (animação pulse/fade opcional)
+  - Indicador de loading abaixo do logo (CircularProgressIndicator cor primary)
+
+  ---
+  TELA 3 → DASHBOARD (HOME)
+
+  Quando aparece: Após login bem-sucedido
+
+  Layout:
+  - AppBar:
+    - Logo centralizado (144x144px)
+    - Altura 80px
+    - Sem botão voltar
+  - Bottom Navigation (Curved Navigation Bar):
+    - Background: Grey Light (#D5D3D3)
+    - Curva superior arredondada
+    - 2 ícones:
+        i. Lista (ícone: list, 30px)
+      ii. Perfil (ícone: person_outline, 30px)
+    - Ícone ativo: Primary
+  - Conteúdo (PageView com 2 abas):
+
+  ABA 1 - Lista de Chamados Finalizados (índice 0)
+
+  - Header da aba:
+    - Título: "Chamados Realizados" (20px, bold, primary)
+    - Centralizado
+  - Lista:
+    - Se vazia: Texto centralizado "Nenhum Chamado Encontrado" (18px, grey)
+    - Se tem dados: ListView com cards:
+        - Card de chamado:
+            - Leading: Ícone check_circle_outline (40px, cor success verde)
+        - Title: "Chamado #{id}" (16px, bold)
+        - Subtitle: "Coleta: {endereço}" (14px, grey, max 2 linhas)
+        - Trailing: Seta para direita (ícone arrow_forward_ios, primary)
+        - Padding: 16px vertical entre cards
+        - Background: branco
+        - Elevation: 2px
+        - Border radius: 12px
+
+  ABA 2 - Perfil do Motorista (índice 1)
+
+  - Header:
+    - Foto de perfil:
+        - CircleAvatar (radius 75px)
+      - Se sem foto: ícone person cinza em fundo grey light
+      - Se com foto: imagem do servidor
+      - Botão sobreposto (câmera) para trocar foto (bottom right)
+    - Nome do motorista (20px, bold, capitalize)
+    - Empresa/Provedor (14px, grey, capitalize)
+  - Divisor (linha horizontal, cor divider)
+  - Informações:
+    - Label: "Número de contato" (20px, bold)
+    - Valor: {telefone formatado} (16px, grey)
+  - Divisor
+  - Botão de logout:
+    - Label: "Sair"
+    - Background: Error (#D51A18)
+    - Ícone: exit_to_app
+    - Largura total
+    - Margin top: 24px
+
+  Navegação daqui:
+  → Ao receber deep link de chamado: navega para TELA 4
+  → Ao clicar em item da lista: (atualmente vazio, mas poderia ir para detalhes)
+
+  ---
+  TELA 4 → CHAMADO ATIVO
+
+  Quando aparece: Após aceitar um chamado (via deep link ou push notification)
+
+  Layout:
+  - Bottom Navigation (Curved Navigation Bar):
+    - Background: Grey Light
+    - 2 ícones:
+        i. Info (ícone: info_outline, 30px) → Informações do chamado
+      ii. Formulário (ícone: format_align_center_sharp, 30px) → Vistoria
+  - Conteúdo (PageView com 2 abas):
+
+  ABA 1 - Informações do Chamado (índice 0)
+
+  Seção 1 - Dados do Cliente:
+  - CircleAvatar (radius 50px, ícone person, background grey light)
+  - Nome do associado (20px, bold)
+  - Descrição do veículo: "{modelo} {cor} {ano}" (16px, secondary text)
+
+  Seção 2 - Tipo de Serviço:
+  - Texto: "Serviço: {tipo}" (22px, bold, primary)
+  - Exemplo: "Serviço: Reboque"
+
+  Divisor
+
+  Seção 3 - Dados de Contato:
+  - "CPF/CNPJ: {valor}" (16px)
+  - "Telefone: {valor}" (16px) + botões:
+    - Ícone WhatsApp (22px, primary)
+    - Ícone Ligar (22px, primary)
+  - "Placa: {valor}" (16px)
+
+  Divisor
+
+  Seção 4 - Endereço Atual:
+  - "Endereço: {endereço completo}" (14px, pode quebrar linha)
+
+  Seção 5 - Ações Rápidas:
+  - 2 botões lado a lado (row com espaço 10px):
+    a. "Como Chegar?"
+        - Ícone: location_on_outlined
+      - Background: Primary
+      - Texto: branco
+    b. "Atendente"
+        - Ícone: call
+      - Background: Primary
+      - Texto: branco
+
+  Divisor
+
+  Seção 6 - Timeline Horizontal (Status do Serviço):
+  - ListView horizontal com height 120px
+  - Itens da timeline:
+    - Para REBOQUE: 4 etapas
+        i. Aguardando Check-in (ícone: pin_drop)
+      ii. Realizando Check-in (ícone: camera_alt)
+      iii. Aguardando Check-out (ícone: local_shipping)
+      iv. Realizando Check-out (ícone: assignment_turned_in)
+    - Para outros serviços: 2 etapas
+    - Visual de cada item:
+        - Círculo com ícone (50px)
+      - Linha conectora (1.5px)
+      - Texto descritivo abaixo (14px, center, max 2 linhas)
+      - Cor:
+            - Pendente: Grey Light
+        - Em andamento/Concluído: Primary
+
+  Seção 7 - Tabs (Viagens e Vistorias):
+  - TabBar com 2 tabs:
+    a. "Viagens" (ícone: pin_drop_outlined)
+    b. "Vistorias" (ícone: camera_alt_outlined)
+  - Tab Viagens:
+    - ListTile "Endereço de Origem"
+        - Leading: Ícone (status da viagem)
+      - Title: bold, 18px
+      - Subtitle: endereço (max 2 linhas)
+    - ListTile "Endereço de Destino" (só para reboque)
+
+  - Tab Vistorias:
+    - ListTile "Check-in"
+        - Title: "Check-in" (18px, bold)
+      - Subtitle: "Vistoria de Coleta"
+      - Leading: Ícone de status
+    - ListTile "Check-out" (só para reboque)
+        - Title: "Check-out" (18px, bold)
+      - Subtitle: "Vistoria de Final"
+
+  Seção 8 - Ação de Cancelamento:
+  - Botão vermelho (Error color)
+  - Label: "Cancelar Atendimento"
+  - Largura total
+  - Margin vertical: 20px
+
+  ABA 2 - Formulário de Vistoria (índice 1)
+
+  Header:
+  - Título dinâmico:
+    - "Vistoria de Coleta" (para check-in)
+    - "Vistoria de Descarregamento" (para check-out)
+  - Fonte: 24px, semibold
+  - Padding vertical: 25px
+
+  Stepper Vertical (3 steps):
+
+  STEP 1 - Fotos do Veículo (obrigatório*)
+  - Título: "Fotos do Veículo*" (15px, bold, asterisco vermelho)
+  - Subtitle:
+    - "Tire as fotos do veículo em seu primeiro contato, caso deseje adicionar mais fotos, clique no primeiro botão."
+  (12px, parte sublinhada e bold)
+  - Lista horizontal de fotos (height 100px):
+    - Cards de foto:
+        - Tamanho: 85x85px
+      - Border: 4px (primary se selecionado, grey se não)
+      - Tipos padrão:
+            1. Frente (ícone: directions_car_rounded)
+        2. Lateral Esquerda
+        3. Traseira
+        4. Lateral Direita
+      - Último card: "Adicionar Foto" (ícone: add_a_photo)
+    - Se foto tirada: mostra miniatura da imagem
+    - Se não: mostra ícone do carro (grey)
+
+  STEP 2 - Foto(s) dos Pertences (opcional)
+  - Título: "Foto(s) do(s) Pertence(s)" (15px, bold)
+  - Subtitle:
+    - "Caso haja pertences do associado dentro do veículo, tire foto(s)." (12px, "tire foto(s)" sublinhado e bold)
+  - Lista horizontal de fotos:
+    - Similar ao step 1
+    - Ícone padrão: home_repair_service_outlined
+    - Cards numerados (1, 2, 3...)
+    - Botão "Adicionar Foto"
+
+  STEP 3 - Assinatura do Responsável (obrigatório*)
+  - Título: "Assinatura do Responsável*" (15px, bold, asterisco vermelho)
+  - Subtitle: "Colete a assinatura do responsável"
+  - Card único:
+    - Tamanho: 85x85px
+    - Label: "Assinatura"
+    - Ícone: app_registration_sharp
+    - Cor do ícone:
+        - Preto: sem assinatura
+      - Verde (success): com assinatura
+
+  Bottom Button:
+  - Label: "Proceder com a vistoria"
+  - Background: Primary
+  - Ao clicar: abre Bottom Sheet (ver TELA 5)
+
+  Navegação daqui:
+  → Ao clicar em campo de assinatura: navega para TELA 6
+  → Ao clicar em campo de foto: navega para TELA 7
+  → Após concluir vistoria: volta para TELA 3
+
+  ---
+  TELA 5 → BOTTOM SHEET - OBSERVAÇÃO DA VISTORIA
+
+  Quando aparece: Ao clicar em "Proceder com a vistoria" na Tela 4 (aba 2)
+
+  Layout:
+  - Background: Branco
+  - Border radius top: 24px
+  - Padding: 15px
+
+  Conteúdo:
+  - Título: "Adicionar uma observação?" (18px, bold)
+  - Campo de texto:
+    - Label: "Observação"
+    - Hint: "Digite uma observação"
+    - Max lines: 3
+    - Border: outline
+    - Texto: auto-capitalize sentences
+  - Botão dinâmico:
+    - Label:
+        - "Enviar (com observação)" → se campo preenchido, background primary
+      - "Enviar (sem observação)" → se campo vazio, background grey
+    - Largura total
+    - Margin top: 15px
+
+  Navegação daqui:
+  → Após enviar: fecha bottom sheet, processa vistoria, volta para TELA 3 (com alerta de sucesso se for a última
+  vistoria)
+
+  ---
+  TELA 6 → ASSINATURA DO RESPONSÁVEL
+
+  Quando aparece: Ao clicar no campo de assinatura na vistoria
+
+  Layout:
+  - Orientação: Landscape (forçado)
+  - AppBar:
+    - Título: "Assinatura do Responsável" (20px)
+    - Background: Grey Light
+    - Leading: Botão voltar (seta)
+    - Actions:
+        i. Ícone restart_alt (30px) → Limpar assinatura
+      ii. Ícone check (30px, verde) → Salvar assinatura
+    - Altura: 44px
+  - Body:
+    - Canvas branco em tela cheia
+    - Permite desenhar com o dedo
+    - Linha: 3px, cor preta
+
+  Diálogo ao salvar:
+  - Título: "Você declara ter visto todas as fotos de pertences?"
+  - Botões: "Sim" / "Não"
+
+  Navegação daqui:
+  → Após salvar: volta para TELA 4 (aba 2)
+
+  ---
+  TELA 7 → CÂMERA PARA FOTOS
+
+  Quando aparece: Ao clicar em campo de foto na vistoria
+
+  Layout:
+  - Background: Preto
+  - AppBar:
+    - Título dinâmico: nome do tipo de foto (ex: "Frente", "Lateral Esquerda")
+    - Background: Scaffold background
+    - Centralizado
+  - Preview da câmera:
+    - Altura: ~70% da tela
+    - Largura: total
+    - Preview em tempo real
+  - Seção inferior (30% da tela):
+    - Lista horizontal de miniaturas (height 80px):
+        - Cards 85x85px
+      - Border: 4px (primary se selecionado, grey se não)
+      - Se foto tirada: mostra miniatura
+      - Se não: mostra label do tipo de foto
+      - Último card: "+" para adicionar nova foto
+    - Botão de captura (centralizado):
+        - Círculo branco (65px outer, 45px inner)
+      - Border branca 4px
+      - Ao tocar: captura foto
+    - Botão flash (canto superior direito):
+        - Ícone: flash_on/flash_off (24px)
+      - Background: semi-transparente
+
+  Navegação daqui:
+  → Após capturar foto: volta para TELA 4 (aba 2) com foto salva
+
+  ---
+  TELA 8 → DIÁLOGOS E MODALS (Componentes reutilizáveis)
+
+  1. Diálogo de Confirmação:
+  - Título (18px, bold, primary ou error)
+  - Mensagem (14px, text primary)
+  - 2 botões:
+    - "Cancelar" / "Não" (outline, grey)
+    - "Confirmar" / "Sim" (filled, primary ou error)
+
+  2. Diálogo de Sucesso:
+  - Ícone check_circle (60px, success)
+  - Título (20px, bold)
+  - Mensagem (14px)
+  - Botão "OK" (primary)
+
+  3. Diálogo de Erro:
+  - Ícone error (60px, error)
+  - Título (20px, bold)
+  - Mensagem (14px)
+  - Botão "OK" (error)
+
+  4. Loading Overlay:
+  - Background: semi-transparente (preto 50%)
+  - CircularProgressIndicator (primary)
+  - Texto opcional abaixo: "Carregando..." (branco, 14px)
+
+  ---
+  🔄 FLUXO COMPLETO DE NAVEGAÇÃO
+
+  INÍCIO (não autenticado)
+      ↓
+  TELA 1 → Login Etapa 1 (CNPJ/CPF)
+      ↓
+  TELA 1.2 → Login Etapa 2 (Senha)
+      ↓
+  TELA 1.3 → Login Etapa 3 (Registro)
+      ↓
+  TELA 3 → Dashboard
+      ├── Aba 1: Lista de Chamados
+      └── Aba 2: Perfil
+
+  (Ao receber chamado via deep link)
+      ↓
+  TELA 4 → Chamado Ativo
+      ├── Aba 1: Informações
+      └── Aba 2: Formulário de Vistoria
+              ├── Step 1: Fotos Veículo → TELA 7 (Câmera)
+              ├── Step 2: Fotos Pertences → TELA 7 (Câmera)
+              ├── Step 3: Assinatura → TELA 6 (Assinatura)
+              └── Botão "Proceder" → TELA 5 (Bottom Sheet)
+      ↓
+  (Após finalizar vistoria)
+      ↓
+  TELA 3 → Dashboard (com mensagem de sucesso)
+
+  ---
+  📝 COMPONENTES REUTILIZÁVEIS
+
+  1. Botão Primary (AppPrimaryButtonWidget)
+
+  - Altura: 56px
+  - Border radius: 12px
+  - Background: Primary (#007E5E)
+  - Texto: branco, 16px, semibold
+  - Largura: total (com padding 16px)
+  - Elevation: 2px
+  - Disabled: Background #F3EC65
+
+  2. Campo de Texto (AppPrimaryTextFormFieldWidget)
+
+  - Altura: 56px
+  - Border: 1px solid grey light (normal), 2px solid primary (focus)
+  - Border radius: 8px
+  - Label: floating (12px quando focus, 16px quando normal)
+  - Hint: grey, 14px
+  - Padding interno: 16px
+  - Ícone leading: opcional (20px, grey)
+  - Erro: borda e texto error color
+
+  3. Dropdown Field (AppDropdownButtonFormFieldWidget)
+
+  - Similar ao campo de texto
+  - Ícone trailing: arrow_drop_down
+  - Menu dropdown com border radius 8px
+  - Items com padding 12px vertical
+
+  4. Card de Item de Lista
+
+  - Background: branco
+  - Border radius: 12px
+  - Elevation: 2px
+  - Padding: 16px
+  - Margin bottom: 12px
+
+  5. Logo (AppLogoImageWidget)
+
+  - Imagem centralizada
+  - Tamanhos variáveis conforme contexto
+  - Aspect ratio preservado
+
+  6. Avatar de Perfil
+
+  - Circular
+  - Border: 2px branco (se tiver foto)
+  - Placeholder: ícone person em background grey light
+  - Botão de edição: CircleAvatar pequeno sobreposto (bottom right), background primary
+
+  ---
+  ✅ CHECKLIST DE ELEMENTOS VISUAIS PARA TODAS AS TELAS
+
+  - Seguir paleta de cores exatamente (#007E5E como primary)
+  - Usar fonte Be Vietnam Pro
+  - Border radius consistente (8-12px)
+  - Espaçamento múltiplos de 8px (8, 16, 24, 32)
+  - Botões com altura mínima de 48px (56px preferencial)
+  - Ícones Material Design (20-30px)
+  - Cards com elevation 2-4px
+  - Bottom navigation curved (arredondado)
+  - Feedback visual em todos os botões (ripple effect)
+  - Estados de loading (CircularProgressIndicator)
+  - Estados vazios (mensagens centralizadas)
+  - Estados de erro (diálogos com ícone)
+  - Transições suaves entre telas (fade 350ms)
+  - AppBar consistente (logo, altura 80px)
+  - Safe area em todas as telas
+  - Responsividade (testar em diferentes tamanhos)
+
+  ---
+  🎬 ANIMAÇÕES E MICROINTERAÇÕES
+
+Quero animações modernas e elegantes entre navegações de paginas, modais, botões e etc...
+  ---
+  IMPORTANTE: Este é um aplicativo profissional de serviços. O design deve transmitir confiança, clareza e eficiência.
+  Priorize legibilidade, fácil navegação e feedback visual claro em todas as interações.
