@@ -18,6 +18,17 @@ import {
 } from '@expo-google-fonts/be-vietnam-pro';
 import Colors from '@/constants/colors';
 
+// Suprimir logs de erro do axios no console
+const originalConsoleError = console.error;
+console.error = (...args: any[]) => {
+  const message = args[0]?.toString() || '';
+  // Ignorar erros do axios
+  if (message.includes('axios') || message.includes('AxiosError')) {
+    return;
+  }
+  originalConsoleError(...args);
+};
+
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {

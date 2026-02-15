@@ -15,10 +15,18 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.myapp"
+      "bundleIdentifier": "com.myapp",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Precisamos da sua localização para rastrear o chamado em tempo real",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Precisamos da sua localização para rastrear o chamado em tempo real"
+      }
     },
     "android": {
       "package": "com.myapp",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -37,7 +45,13 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Precisamos da sua localização para rastrear o chamado em tempo real"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

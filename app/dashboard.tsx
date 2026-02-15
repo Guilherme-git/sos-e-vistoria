@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, FlatList, Pressable, Platform } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -10,15 +10,76 @@ import Animated, { FadeIn, FadeInUp, FadeInDown } from 'react-native-reanimated'
 import BottomNav from '@/components/BottomNav';
 import AppButton from '@/components/AppButton';
 import AppDialog from '@/components/AppDialog';
+import IncomingCallModal from '@/components/IncomingCallModal';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCalls, CallRecord } from '@/contexts/CallsContext';
+import { useLocationTracking, LocationStatus } from '@/lib/useLocationTracking';
 import * as Crypto from 'expo-crypto';
 
 const NAV_ITEMS = [
   { icon: 'receipt-long' as const, label: 'Chamados', key: 'calls' },
   { icon: 'person-outline' as const, label: 'Perfil', key: 'profile' },
 ];
+
+function LocationStatusBadge({ status, lastUpdate }: { status: LocationStatus; lastUpdate: Date | null }) {
+  const getStatusConfig = () => {
+    switch (status) {
+      case 'connected':
+        return {
+          color: Colors.success,
+          bgColor: Colors.successLight,
+          icon: 'my-location' as const,
+          text: 'GPS Ativo',
+          pulse: true,
+        };
+      case 'connecting':
+        return {
+          color: '#F39C11',
+          bgColor: 'rgba(243, 156, 17, 0.1)',
+          icon: 'location-searching' as const,
+          text: 'Conectando...',
+          pulse: false,
+        };
+      case 'permission_denied':
+        return {
+          color: '#F39C11',
+          bgColor: 'rgba(243, 156, 17, 0.1)',
+          icon: 'location-off' as const,
+          text: 'Permissão Negada',
+          pulse: false,
+        };
+      case 'error':
+        return {
+          color: Colors.error,
+          bgColor: 'rgba(213, 26, 24, 0.1)',
+          icon: 'location-off' as const,
+          text: 'GPS Offline',
+          pulse: false,
+        };
+      default:
+        return {
+          color: Colors.textTertiary,
+          bgColor: Colors.greyLight,
+          icon: 'location-disabled' as const,
+          text: 'GPS Inativo',
+          pulse: false,
+        };
+    }
+  };
+
+  const config = getStatusConfig();
+
+  return (
+    <View style={[styles.locationBadge, { backgroundColor: config.bgColor }]}>
+      <MaterialIcons name={config.icon} size={14} color={config.color} />
+      <Text style={[styles.locationBadgeText, { color: config.color }]}>
+        {config.text}
+      </Text>
+      {config.pulse && <View style={[styles.pulseDot, { backgroundColor: config.color }]} />}
+    </View>
+  );
+}
 
 function CallCard({ call, index }: { call: CallRecord; index: number }) {
   const date = new Date(call.createdAt);
@@ -62,20 +123,84 @@ function ProfileItem({ icon, label, value }: { icon: keyof typeof MaterialIcons.
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { driver, logout, updatePhoto } = useAuth();
+  const { user, logout, isAuthenticated, token } = useAuth();
   const { completedCalls, setActiveCall } = useCalls();
   const [tabIndex, setTabIndex] = useState(0);
   const [showLogout, setShowLogout] = useState(false);
+  const [isScreenFocused, setIsScreenFocused] = useState(false);
+
+  // Estados do modal de chamado
+  const [showIncomingCall, setShowIncomingCall] = useState(false);
+  const [incomingCallData, setIncomingCallData] = useState<any>(null);
+
+  // Rastreamento de localização em tempo real (apenas quando dashboard está em foco)
+  const locationState = useLocationTracking(token, isAuthenticated && isScreenFocused);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
+
+  // Redirecionar se não estiver autenticado
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      router.replace('/');
+    }
+  }, [isAuthenticated, user]);
+
+  // Controlar quando o dashboard está em foco (ativar/desativar localização)
+  useFocusEffect(
+    useCallback(() => {
+      setIsScreenFocused(true);
+
+      // SIMULAÇÃO: Mostrar chamado após 1 segundo (REMOVER EM PRODUÇÃO)
+      const simulationTimer = setTimeout(() => {
+        const fakeCall = {
+          id: 'SIMULATED-' + Date.now(),
+          clientName: 'João Silva',
+          clientPhone: '(62) 98765-4321',
+          pickupAddress: 'Av. Goiás, 1234 - Setor Central, Goiânia - GO',
+          deliveryAddress: 'Rua 10, 567 - Setor Oeste, Goiânia - GO',
+          distance: '8.5 km',
+          estimatedTime: '15 min',
+          serviceType: 'Reboque',
+          vehiclePlate: 'ABC-1234',
+        };
+        setIncomingCallData(fakeCall);
+        setShowIncomingCall(true);
+      }, 1000);
+
+      return () => {
+        setIsScreenFocused(false);
+        clearTimeout(simulationTimer);
+      };
+    }, [])
+  );
 
   const handleLogout = async () => {
     setShowLogout(false);
     await logout();
-    router.replace('/');
   };
 
+  const handleAcceptCall = () => {
+    console.log('✅ Chamado aceito:', incomingCallData);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowIncomingCall(false);
+    // TODO: Navegar para tela de chamado ativo
+    // router.push('/active-call');
+  };
+
+  const handleRejectCall = () => {
+    console.log('❌ Chamado recusado:', incomingCallData);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowIncomingCall(false);
+    setIncomingCallData(null);
+  };
+
+  // Não renderizar se não estiver autenticado
+  if (!isAuthenticated || !user) {
+    return null;
+  }
+
   const handlePickPhoto = async () => {
+    // TODO: Implementar upload de foto de perfil via API
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -83,7 +208,8 @@ export default function DashboardScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      await updatePhoto(result.assets[0].uri);
+      // await updatePhoto(result.assets[0].uri);
+      console.log('Foto selecionada:', result.assets[0].uri);
     }
   };
 
@@ -123,11 +249,12 @@ export default function DashboardScreen() {
           <View style={styles.header}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.greeting} numberOfLines={1} ellipsizeMode="tail">
-                Olá, {driver?.name?.split(' ')[0] || 'Motorista'}
+                Olá, {user?.name?.split(' ')[0] || 'Motorista'}
               </Text>
               <Text style={styles.headerSub} numberOfLines={1} ellipsizeMode="tail">
                 Seus chamados realizados
               </Text>
+              <LocationStatusBadge status={locationState.status} lastUpdate={locationState.lastUpdate} />
             </View>
             <Pressable onPress={handleSimulateCall} style={styles.newCallBtn}>
               <LinearGradient
@@ -184,8 +311,8 @@ export default function DashboardScreen() {
             style={[styles.profileGradient, { paddingTop: topInset + 24 }]}
           >
             <Pressable onPress={handlePickPhoto} style={styles.avatarContainer}>
-              {driver?.photoUri ? (
-                <Image source={{ uri: driver.photoUri }} style={styles.avatar} />
+              {user && 'profile_image_path' in user && user.profile_image_path ? (
+                <Image source={{ uri: user.profile_image_path }} style={styles.avatar} />
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   <MaterialIcons name="person" size={48} color={Colors.textTertiary} />
@@ -195,14 +322,18 @@ export default function DashboardScreen() {
                 <MaterialIcons name="camera-alt" size={14} color={Colors.white} />
               </View>
             </Pressable>
-            <Text style={styles.profileName}>{driver?.name || 'Motorista'}</Text>
-            <Text style={styles.profileCompany}>{driver?.company || ''}</Text>
+            <Text style={styles.profileName}>{user?.name || 'Motorista'}</Text>
+            <Text style={styles.profileCompany}>
+              {user && 'towing_provider' in user ? user.towing_provider?.fantasy_name || '' : ''}
+            </Text>
           </LinearGradient>
 
           <View style={styles.profileBody}>
-            <ProfileItem icon="phone-iphone" label="Telefone" value={driver?.phone || '--'} />
-            <ProfileItem icon="badge" label="Documento" value={driver?.cnpjCpf || '--'} />
-            <ProfileItem icon="business" label="Empresa" value={driver?.company || '--'} />
+            <ProfileItem icon="phone-iphone" label="Telefone" value={user?.phone || '--'} />
+            <ProfileItem icon="badge" label="CPF" value={user?.cpf || '--'} />
+            {user && 'towing_provider' in user && (
+              <ProfileItem icon="business" label="Empresa" value={user.towing_provider?.fantasy_name || '--'} />
+            )}
 
             <Pressable
               onPress={() => setShowLogout(true)}
@@ -227,6 +358,45 @@ export default function DashboardScreen() {
           { label: 'Cancelar', onPress: () => setShowLogout(false), variant: 'outline' },
           { label: 'Sair', onPress: handleLogout, variant: 'error' },
         ]}
+      />
+
+      <AppDialog
+        visible={locationState.needsPermission}
+        onClose={() => {}} // Não pode fechar sem dar permissão
+        type="confirm"
+        title="Permissão de Localização Necessária"
+        message="Para rastrear sua localização em tempo real durante os chamados, precisamos acessar sua localização. Clique no botão abaixo para abrir as configurações e permitir o acesso."
+        buttons={[
+          {
+            label: 'Abrir Configurações',
+            onPress: () => locationState.requestPermission(),
+            variant: 'primary'
+          },
+        ]}
+      />
+
+      <AppDialog
+        visible={locationState.needsGpsEnabled}
+        onClose={() => {}} // Não pode fechar sem ativar GPS
+        type="error"
+        title="GPS Desativado"
+        message="O GPS do seu dispositivo está desativado. Para rastrear sua localização em tempo real, é necessário ativar o GPS. Clique no botão abaixo para abrir as configurações."
+        buttons={[
+          {
+            label: 'Ativar GPS',
+            onPress: () => locationState.openLocationSettings(),
+            variant: 'primary'
+          },
+        ]}
+      />
+
+      {/* Modal de Chamado Entrante (estilo Uber) */}
+      <IncomingCallModal
+        visible={showIncomingCall}
+        callData={incomingCallData}
+        onAccept={handleAcceptCall}
+        onReject={handleRejectCall}
+        timeout={15}
       />
     </View>
   );
@@ -479,5 +649,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'BeVietnamPro_600SemiBold',
     color: Colors.error,
+  },
+  locationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  locationBadgeText: {
+    fontSize: 12,
+    fontFamily: 'BeVietnamPro_600SemiBold',
+    letterSpacing: 0.3,
+  },
+  pulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    opacity: 0.8,
   },
 });
