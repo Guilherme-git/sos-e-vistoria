@@ -33,6 +33,7 @@ interface CallsContextValue {
   updateActiveCall: (updates: Partial<CallRecord>) => Promise<void>;
   completeCall: () => Promise<void>;
   loadCalls: () => Promise<void>;
+  clearCalls: () => Promise<void>;
 }
 
 const CallsContext = createContext<CallsContextValue | null>(null);
@@ -82,6 +83,12 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem('calls', JSON.stringify(allCalls));
   };
 
+  const clearCalls = async () => {
+    setCalls([]);
+    setActiveCallState(null);
+    await AsyncStorage.removeItem('calls');
+  };
+
   const value = useMemo(() => ({
     calls,
     activeCall,
@@ -90,6 +97,7 @@ export function CallsProvider({ children }: { children: ReactNode }) {
     updateActiveCall,
     completeCall,
     loadCalls,
+    clearCalls,
   }), [calls, activeCall]);
 
   return (

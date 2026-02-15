@@ -8,79 +8,124 @@ import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, SlideInRight } from 'react-native-reanimated';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import AppTextField from '@/components/AppTextField';
-import AppDropdown from '@/components/AppDropdown';
 import AppButton from '@/components/AppButton';
 import AppDialog from '@/components/AppDialog';
 import Colors from '@/constants/colors';
-import { maskCNPJ, maskCPF, maskPhone, isValidCNPJ, isValidCPF, isValidPhone } from '@/lib/masks';
+import { maskCPF, isValidCPF } from '@/lib/masks';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginGuincheiroScreen() {
   const insets = useSafeAreaInsets();
-  const { login } = useAuth();
+  const { loginGuincheiro } = useAuth();
   const [step, setStep] = useState(0);
-  const [docType, setDocType] = useState('CNPJ');
-  const [docValue, setDocValue] = useState('');
-  const [password, setPassword] = useState('');
   const [cpf, setCpf] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [showInfoDialog, setShowInfoDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
 
-  const handleDocMask = (text: string) => {
-    setDocValue(docType === 'CNPJ' ? maskCNPJ(text) : maskCPF(text));
-    setErrors((e) => ({ ...e, doc: '' }));
+  const handleCpfChange = (text: string) => {
+    setCpf(maskCPF(text));
+    setErrors((e) => ({ ...e, cpf: '' }));
+  };
+
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    setErrors((e) => ({ ...e, password: '' }));
   };
 
   const validateStep0 = () => {
-    if (!docValue.trim()) { setErrors({ doc: 'Campo obrigatório' }); return false; }
-    const valid = docType === 'CNPJ' ? isValidCNPJ(docValue) : isValidCPF(docValue);
-    if (!valid) { setErrors({ doc: `${docType} inválido` }); return false; }
+    if (!cpf.trim()) {
+      setErrors({ cpf: 'Campo obrigatório' });
+      return false;
+    }
+    if (!isValidCPF(cpf)) {
+      setErrors({ cpf: 'CPF inválido' });
+      return false;
+    }
     return true;
   };
 
   const validateStep1 = () => {
-    if (!password.trim()) { setErrors({ password: 'Campo obrigatório' }); return false; }
+    if (!password.trim()) {
+      setErrors({ password: 'Campo obrigatório' });
+      return false;
+    }
     return true;
-  };
-
-  const validateStep2 = () => {
-    const errs: Record<string, string> = {};
-    if (!cpf.trim()) errs.cpf = 'Campo obrigatório';
-    else if (!isValidCPF(cpf)) errs.cpf = 'CPF inválido';
-    if (!name.trim()) errs.name = 'Campo obrigatório';
-    if (!phone.trim()) errs.phone = 'Campo obrigatório';
-    else if (!isValidPhone(phone)) errs.phone = 'Telefone inválido';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
   };
 
   const handleNext = () => {
     Keyboard.dismiss();
-    if (step === 0 && validateStep0()) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setStep(1); }
-    else if (step === 1 && validateStep1()) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setStep(2); }
-    else if (step === 2 && validateStep2()) { handleLogin(); }
+    if (step === 0 && validateStep0()) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setStep(1);
+    } else if (step === 1 && validateStep1()) {
+      handleLogin();
+    }
   };
 
   const handleLogin = async () => {
-    setLoading(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await new Promise(r => setTimeout(r, 800));
-    await login({ cnpjCpf: docValue, cpf: cpf.replace(/\D/g, ''), name, phone, company: 'SOS e Vistoria', role: 'guincheiro' });
-    setLoading(false);
-    router.replace('/dashboard');
+    try {
+      setLoading(true);
+
+      // Fazer login na API
+      await loginGuincheiro(cpf, password);
+
+      // Sucesso - vibrar e redirecionar
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/dashboard');
+    } catch (error: any) {
+      // Erro - mostrar mensagem
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+      // Tratar diferentes tipos de erro
+      let message = 'Erro ao fazer login. Tente novamente.';
+
+      if (error.response) {
+        // Erro da API (status code 4xx ou 5xx)
+        const status = error.response.status;
+        const apiError = error.response.data?.error;
+
+        if (status === 401 || status === 403) {
+          message = apiError || 'CPF ou senha inválidos.';
+        } else if (status >= 500) {
+          message = 'Erro no servidor. Tente novamente mais tarde.';
+        } else {
+          message = apiError || 'Erro ao fazer login. Verifique seus dados.';
+        }
+      } else if (error.request) {
+        // Erro de rede (sem resposta do servidor)
+        message = 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.';
+      } else if (error.message && !error.message.includes('axios')) {
+        // Outros erros (sem detalhes técnicos)
+        message = error.message;
+      }
+
+      setErrorMessage(message);
+      setShowErrorDialog(true);
+
+      // Voltar para o passo 0 em caso de erro
+      setStep(0);
+      setPassword('');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleBack = () => {
-    if (step > 0) { setStep(step - 1); setErrors({}); }
-    else router.back();
+    if (step > 0) {
+      setStep(step - 1);
+      setErrors({});
+    } else {
+      router.back();
+    }
   };
 
-  const stepIndicators = [0, 1, 2];
+  const stepIndicators = [0, 1];
 
   return (
     <View style={styles.screen}>
@@ -107,9 +152,21 @@ export default function LoginGuincheiroScreen() {
             <Text style={styles.welcomeTitle}>Guincheiro</Text>
             <Text style={styles.welcomeSubtitle}>Faça login para continuar</Text>
             <View style={styles.formSection}>
-              <AppDropdown label="Tipo de documento" value={docType} options={['CNPJ', 'CPF']} onSelect={(v) => { setDocType(v); setDocValue(''); setErrors({}); }} />
-              <AppTextField label={docType} icon="badge" value={docValue} onChangeText={handleDocMask} keyboardType="numeric" error={errors.doc} />
-              <AppButton label="Continuar" onPress={handleNext} loading={loading} icon="arrow-forward" />
+              <AppTextField
+                label="CPF"
+                icon="badge"
+                value={cpf}
+                onChangeText={handleCpfChange}
+                keyboardType="numeric"
+                error={errors.cpf}
+                autoFocus
+              />
+              <AppButton
+                label="Continuar"
+                onPress={handleNext}
+                loading={loading}
+                icon="arrow-forward"
+              />
               <Pressable onPress={() => setShowInfoDialog(true)} style={styles.registerLink}>
                 <Text style={styles.registerText}>Ainda não tem conta? </Text>
                 <Text style={styles.registerHighlight}>Cadastre-se</Text>
@@ -126,29 +183,45 @@ export default function LoginGuincheiroScreen() {
               </View>
             </View>
             <Text style={styles.stepTitle}>Insira sua senha</Text>
-            <Text style={styles.stepHint}>Se ainda não definiu uma senha, use os 6 primeiros dígitos do seu CPF.</Text>
+            <Text style={styles.stepHint}>Digite sua senha para acessar o aplicativo.</Text>
             <View style={styles.formSection}>
-              <AppTextField label="Senha" icon="lock" value={password} onChangeText={(t) => { setPassword(t); setErrors({}); }} secureTextEntry error={errors.password} />
-              <AppButton label="Prosseguir" onPress={handleNext} loading={loading} icon="arrow-forward" />
-            </View>
-          </Animated.View>
-        )}
-
-        {step === 2 && (
-          <Animated.View entering={SlideInRight.duration(300)} key="step2">
-            <Text style={styles.stepTitle}>Complete seu perfil</Text>
-            <Text style={styles.stepHint}>Precisamos de mais algumas informações para prosseguir.</Text>
-            <View style={styles.formSection}>
-              <AppTextField label="CPF" icon="badge" value={cpf} onChangeText={(t) => { setCpf(maskCPF(t)); setErrors((e) => ({ ...e, cpf: '' })); }} keyboardType="numeric" error={errors.cpf} />
-              <AppTextField label="Nome completo" icon="person-outline" value={name} onChangeText={(t) => { setName(t); setErrors((e) => ({ ...e, name: '' })); }} autoCapitalize="words" error={errors.name} />
-              <AppTextField label="Telefone com DDD" icon="phone-iphone" value={phone} onChangeText={(t) => { setPhone(maskPhone(t)); setErrors((e) => ({ ...e, phone: '' })); }} keyboardType="phone-pad" error={errors.phone} />
-              <AppButton label="Criar conta e entrar" onPress={handleNext} loading={loading} icon="check" />
+              <AppTextField
+                label="Senha"
+                icon="lock"
+                value={password}
+                onChangeText={handlePasswordChange}
+                secureTextEntry
+                error={errors.password}
+                autoFocus
+              />
+              <AppButton
+                label="Entrar"
+                onPress={handleNext}
+                loading={loading}
+                icon="check"
+              />
             </View>
           </Animated.View>
         )}
       </KeyboardAwareScrollViewCompat>
 
-      <AppDialog visible={showInfoDialog} onClose={() => setShowInfoDialog(false)} type="confirm" title="Cadastro" message="Para se cadastrar, entre em contato com a central Utiliza SOS para obter suas credenciais de acesso." buttons={[{ label: 'Entendi', onPress: () => setShowInfoDialog(false) }]} />
+      <AppDialog
+        visible={showInfoDialog}
+        onClose={() => setShowInfoDialog(false)}
+        type="confirm"
+        title="Cadastro"
+        message="Para se cadastrar, entre em contato com a central Utiliza SOS para obter suas credenciais de acesso."
+        buttons={[{ label: 'Entendi', onPress: () => setShowInfoDialog(false) }]}
+      />
+
+      <AppDialog
+        visible={showErrorDialog}
+        onClose={() => setShowErrorDialog(false)}
+        type="error"
+        title="Erro ao fazer login"
+        message={errorMessage}
+        buttons={[{ label: 'Tentar novamente', onPress: () => setShowErrorDialog(false), variant: 'error' }]}
+      />
     </View>
   );
 }

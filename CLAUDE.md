@@ -424,14 +424,17 @@ adb logcat -s ReactNativeJS:V
 
 ### Base URLs
 
-**Produção:**
-- API Guincho: `https://utiliza24h.com.br/api/towing-driver/v1`
-- API Vistoria: `https://utiliza24h.com.br/api/v2/utiliza-vistoria`
-- AI Validator: `https://ia.growthsolutions.com.br/api/v1`
-- Bucket S3: `https://growth-application-bucket.s3.sa-east-1.amazonaws.com`
+**Importante:** Este projeto possui uma **API unificada** que serve tanto o Guincheiro quanto o Vistoriador.
 
 **Desenvolvimento:**
-- Local: `/var/www/utiliza/api_app_sos_vistoria`
+- Local: `http://10.0.2.2:3004` (Android Emulator)
+- Local: `http://localhost:3004` (iOS Simulator)
+- Código-fonte: `/var/www/utiliza/api_app_sos_vistoria`
+
+**Produção (quando implantado):**
+- API: `https://utiliza24h.com.br/api`
+- AI Validator: `https://ia.growthsolutions.com.br/api/v1`
+- Bucket S3: `https://growth-application-bucket.s3.sa-east-1.amazonaws.com`
 
 ### Autenticação
 
@@ -1157,43 +1160,475 @@ socket.on('call:new', (call) => {});
 
 ### Variáveis de Ambiente (.env)
 
+```bash
+# ==================================
+# API CONFIGURATION
+# ==================================
+
+# API unificada para Guincho e Vistoria
+# Para Android Emulator use 10.0.2.2 (mapeia para localhost do PC)
+# Para iOS Simulator use localhost
+# Para dispositivo físico use o IP da máquina na rede local
+API_BASE_URL=http://10.0.2.2:3004
+
+# Ambiente
+NODE_ENV=development
+
+# ==================================
+# EXTERNAL SERVICES (se necessário)
+# ==================================
+
+# AI Validator (se usado)
+# AI_VALIDATOR_URL=https://ia.growthsolutions.com.br/api/v1
+
+# S3 Bucket (se usado)
+# S3_BUCKET_URL=https://growth-application-bucket.s3.sa-east-1.amazonaws.com
+
+# ==================================
+# MQTT (se necessário)
+# ==================================
+
+# MQTT_HOST=ady4g3wrobmle-ats.iot.sa-east-1.amazonaws.com
+# MQTT_PORT=8883
 ```
-# API
-API_BASE_URL_GUINCHO=https://utiliza24h.com.br/api/towing-driver/v1
-API_BASE_URL_VISTORIA=https://utiliza24h.com.br/api/v2/utiliza-vistoria
-AI_VALIDATOR_URL=https://ia.growthsolutions.com.br/api/v1
-S3_BUCKET_URL=https://growth-application-bucket.s3.sa-east-1.amazonaws.com
 
-# MQTT
-MQTT_HOST=ady4g3wrobmle-ats.iot.sa-east-1.amazonaws.com
-MQTT_PORT=8883
+**Importante:**
+- A API está rodando localmente na porta **3004**
+- Use `http://10.0.2.2:3004` para Android Emulator
+- Use `http://localhost:3004` para iOS Simulator
+- Para testar em dispositivo físico, use o IP da máquina na rede local (ex: `http://192.168.1.10:3004`)
 
-# JWT
-JWT_SECRET=your-secret-key
+---
+
+## Implementação de Autenticação (Concluída)
+
+### Estrutura de Arquivos
+
+```
+/lib/api.ts                      # Serviço de API com axios
+/contexts/AuthContext.tsx        # Gerenciamento de autenticação
+/app/login-guincheiro.tsx        # Tela de login do guincheiro
+/app/login-vistoriador.tsx       # Tela de login do vistoriador
+/app/dashboard.tsx               # Dashboard do guincheiro
+/app/inspector-dashboard.tsx     # Dashboard do vistoriador
+/app/index.tsx                   # Tela inicial com seleção de perfil
+```
+
+### Fluxo de Autenticação Implementado
+
+#### 1. Login do Guincheiro (2 passos)
+
+**Endpoint:** `POST /api/guincho/auth/login`
+
+**Request:**
+```json
+{
+  "cpf": "12345678900",
+  "password": "senha123"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGc...",
+    "platform_type": "assistance",
+    "user": {
+      "id": "542",
+      "name": "João Motorista Guincho",
+      "cpf": "12345678900",
+      "email": "joao.guincho@example.com",
+      "phone": "11987654321",
+      "status": "available",
+      "profile_image_path": null,
+      "towing_provider": {
+        "id": "321",
+        "fantasy_name": "CHAVEIRO GLOBO",
+        "cnpj": "00.132.777/0001-00"
+      }
+    }
+  }
+}
+```
+
+**Fluxo:**
+1. Usuário abre o app → Tela de seleção de perfil
+2. Seleciona "Guincheiro" → Vai para `/login-guincheiro`
+3. **Passo 1:** Insere CPF → Valida formato
+4. **Passo 2:** Insere senha → Faz login na API
+5. API retorna: `token`, `platform_type`, `user`
+6. App salva no AsyncStorage:
+   - `auth_token` → JWT
+   - `user_data` → Dados do usuário
+   - `platform_type` → "assistance" ou "inspection"
+7. Redireciona para `/dashboard`
+
+#### 2. Redirecionamento Automático
+
+Ao abrir o app novamente:
+```typescript
+// app/index.tsx
+useEffect(() => {
+  if (!isLoading && isAuthenticated && platformType) {
+    const targetRoute = platformType === 'assistance'
+      ? '/dashboard'           // Guincheiro
+      : '/inspector-dashboard'; // Vistoriador
+    router.replace(targetRoute);
+  }
+}, [isLoading, isAuthenticated, platformType]);
+```
+
+#### 3. Logout e Limpeza de Dados
+
+**Endpoint:** `POST /api/guincho/auth/logout`
+
+**Fluxo:**
+```typescript
+const logout = async () => {
+  try {
+    // 1. Chamar API de logout
+    await guincheiroAuth.logout();
+  } catch (error) {
+    // Continuar mesmo se der erro na API
+  } finally {
+    // 2. Limpar todos os dados locais
+    await AsyncStorage.removeItem('auth_token');
+    await AsyncStorage.removeItem('user_data');
+    await AsyncStorage.removeItem('platform_type');
+    await AsyncStorage.removeItem('calls'); // Limpar chamados
+
+    // 3. Limpar estados
+    setUser(null);
+    setToken(null);
+    setPlatformType(null);
+  }
+};
+```
+
+### Tratamento de Erros
+
+#### Mensagens Amigáveis (sem detalhes técnicos)
+
+```typescript
+// lib/api.ts - Interceptor de resposta
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Token inválido - limpar autenticação
+      await AsyncStorage.removeItem('auth_token');
+      await AsyncStorage.removeItem('user_data');
+    }
+    // Suprimir logs técnicos do axios
+    error.isAxiosError = false;
+    return Promise.reject(error);
+  }
+);
+```
+
+```typescript
+// app/login-guincheiro.tsx - Tratamento no login
+try {
+  await loginGuincheiro(cpf, password);
+  router.replace('/dashboard');
+} catch (error: any) {
+  let message = 'Erro ao fazer login. Tente novamente.';
+
+  if (error.response) {
+    const status = error.response.status;
+    const apiError = error.response.data?.error;
+
+    if (status === 401 || status === 403) {
+      message = apiError || 'CPF ou senha inválidos.';
+    } else if (status >= 500) {
+      message = 'Erro no servidor. Tente novamente mais tarde.';
+    } else {
+      message = apiError || 'Erro ao fazer login. Verifique seus dados.';
+    }
+  } else if (error.request) {
+    message = 'Não foi possível conectar ao servidor. Verifique sua conexão.';
+  }
+
+  setErrorMessage(message);
+  setShowErrorDialog(true);
+}
+```
+
+#### Supressão de Logs Técnicos
+
+```typescript
+// app/_layout.tsx - Filtro global de console.error
+const originalConsoleError = console.error;
+console.error = (...args: any[]) => {
+  const message = args[0]?.toString() || '';
+  // Ignorar erros do axios
+  if (message.includes('axios') || message.includes('AxiosError')) {
+    return;
+  }
+  originalConsoleError(...args);
+};
+```
+
+### Proteção de Rotas
+
+```typescript
+// app/dashboard.tsx
+export default function DashboardScreen() {
+  const { user, logout, isAuthenticated } = useAuth();
+
+  // Redirecionar se não estiver autenticado
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      router.replace('/');
+    }
+  }, [isAuthenticated, user]);
+
+  // Não renderizar se não estiver autenticado
+  if (!isAuthenticated || !user) {
+    return null;
+  }
+
+  // ... resto do componente
+}
+```
+
+### Estrutura do AuthContext
+
+```typescript
+interface AuthContextValue {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  user: User | null;
+  token: string | null;
+  role: UserRole | null;
+  platformType: 'assistance' | 'inspection' | null;
+  loginGuincheiro: (cpf: string, password: string) => Promise<void>;
+  loginVistoriador: (cpf: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
+```
+
+### Dados Salvos no AsyncStorage
+
+| Chave | Tipo | Descrição |
+|-------|------|-----------|
+| `auth_token` | string | JWT do usuário |
+| `user_data` | JSON | Dados completos do usuário (TowingDriver ou Biker) |
+| `platform_type` | string | "assistance" (guincho) ou "inspection" (vistoria) |
+| `calls` | JSON | Chamados do guincheiro (limpo ao logout) |
+
+### Hot Reload vs Restart
+
+**Não precisa reiniciar:**
+- ✅ Alterações em telas (`.tsx`)
+- ✅ Alterações em componentes
+- ✅ Alterações em contextos
+- ✅ Alterações em libs/utils
+
+**Precisa reiniciar (`Ctrl+C` → `npx expo start --clear`):**
+- ❌ `app/_layout.tsx` (arquivo raiz)
+- ❌ `app.json`
+- ❌ `metro.config.js`
+- ❌ `.env`
+- ❌ Instalação de novos pacotes
+
+### Problemas Conhecidos e Soluções
+
+#### 1. Erro: "right operand of 'in' is not an object"
+
+**Causa:** Tentando usar operador `in` com `user` quando está `null`
+
+**Solução:**
+```typescript
+// ❌ Errado
+{'profile_image_path' in user && user.profile_image_path}
+
+// ✅ Correto
+{user && 'profile_image_path' in user && user.profile_image_path}
+```
+
+#### 2. Erro: "The action 'REPLACE' with payload was not handled"
+
+**Causa:** Tentar redirecionar durante o render ao invés de usar `useEffect`
+
+**Solução:**
+```typescript
+// ❌ Errado
+if (!isAuthenticated) {
+  router.replace('/');
+  return null;
+}
+
+// ✅ Correto
+useEffect(() => {
+  if (!isAuthenticated) {
+    router.replace('/');
+  }
+}, [isAuthenticated]);
+
+if (!isAuthenticated) {
+  return null;
+}
+```
+
+#### 3. Cache do Metro não recarrega
+
+**Solução:**
+```bash
+# Parar Metro (Ctrl+C)
+npx expo start --clear
+```
+
+---
+
+## Como Testar o Login
+
+### 1. Preparar Ambiente
+
+```bash
+# Terminal 1 - API
+cd /var/www/utiliza/api_app_sos_vistoria
+npm run dev
+# API rodando em http://localhost:3004
+
+# Terminal 2 - App React Native
+cd /mnt/c/Users/Growth/Documents/Utiliza/app_sos_vistoria
+npx expo start --clear
+# Pressionar 'a' para Android
+```
+
+### 2. Criar Usuário de Teste (se necessário)
+
+```sql
+-- No banco de dados MySQL
+INSERT INTO towing_drivers (
+  towing_provider_id,
+  cpf,
+  name,
+  phone,
+  email,
+  password,
+  status
+) VALUES (
+  321,  -- ID da empresa de guincho
+  '12345678900',
+  'João Motorista Teste',
+  '11987654321',
+  'joao.teste@example.com',
+  '$2a$10$...',  -- Hash bcrypt de 'senha123'
+  'available'
+);
+```
+
+**Gerar hash bcrypt para senha:**
+```javascript
+const bcrypt = require('bcryptjs');
+const hash = bcrypt.hashSync('senha123', 10);
+console.log(hash);
+```
+
+### 3. Fluxo de Teste - Login Guincheiro
+
+1. **Abrir app** → Tela de seleção aparece
+2. **Selecionar "Guincheiro"** → Vai para tela de login
+3. **Inserir CPF:** `123.456.789-00` (com ou sem máscara)
+4. **Clicar "Continuar"** → Vai para passo 2
+5. **Inserir senha:** `senha123`
+6. **Clicar "Entrar"**
+   - ✅ Sucesso: Vai para dashboard
+   - ❌ Erro: Mostra dialog com mensagem amigável
+7. **Verificar dados no dashboard:**
+   - Nome do motorista
+   - CPF formatado
+   - Telefone
+   - Nome da empresa
+
+### 4. Fluxo de Teste - Logout e Redirecionamento
+
+1. **No dashboard** → Ir para aba "Perfil"
+2. **Clicar "Sair da conta"** → Dialog de confirmação aparece
+3. **Confirmar logout**
+   - ✅ Volta para tela de seleção
+   - ✅ Dados limpos (token, user, platform_type, calls)
+4. **Fechar app completamente**
+5. **Abrir app novamente**
+   - ✅ Deve mostrar tela de seleção (não está logado)
+6. **Fazer login novamente**
+7. **Fechar app completamente**
+8. **Abrir app novamente**
+   - ✅ Deve ir direto para o dashboard (logado automaticamente)
+
+### 5. Testar Erros
+
+#### CPF Inválido
+- Inserir: `111.111.111-11`
+- ✅ Deve mostrar: "CPF inválido"
+
+#### Senha Incorreta
+- Inserir CPF correto + senha errada
+- ✅ Deve mostrar dialog: "CPF ou senha inválidos"
+
+#### API Offline
+- Parar a API (`Ctrl+C` no terminal da API)
+- Tentar fazer login
+- ✅ Deve mostrar dialog: "Não foi possível conectar ao servidor. Verifique sua conexão com a internet."
+
+#### Usuário Banido
+- Alterar status no banco para `'banned'`
+- Tentar fazer login
+- ✅ Deve mostrar dialog: "Motorista bloqueado. Entre em contato com o administrador."
+
+### 6. Verificar AsyncStorage (Debug)
+
+**No Chrome DevTools:**
+```javascript
+// Pressionar Shift+M no Metro → Abre DevTools
+
+// Ver dados salvos
+AsyncStorage.getAllKeys().then(console.log);
+AsyncStorage.getItem('auth_token').then(console.log);
+AsyncStorage.getItem('user_data').then(data => console.log(JSON.parse(data)));
+AsyncStorage.getItem('platform_type').then(console.log);
+
+// Limpar dados manualmente (para teste)
+AsyncStorage.clear().then(() => console.log('Tudo limpo!'));
 ```
 
 ---
 
 ## Próximos Passos
 
-### Fase 1: Estrutura Base ✅
+### Fase 1: Estrutura Base ✅ CONCLUÍDA
 - [x] Configurar Expo + TypeScript
 - [x] Criar estrutura de pastas
 - [x] Configurar Contexts
 - [x] Criar componentes base
 
-### Fase 2: Autenticação (Em Progresso)
-- [ ] Tela de seleção de perfil (Guincheiro/Vistoriador)
-- [ ] Implementar login Guincheiro (multi-etapa)
-- [ ] Implementar login Vistoriador (2 passos)
-- [ ] Integrar com API de autenticação
-- [ ] Armazenar token JWT
+### Fase 2: Autenticação ✅ CONCLUÍDA
+- [x] Criar serviço de API (`lib/api.ts`)
+- [x] Atualizar AuthContext para usar JWT
+- [x] Implementar login Guincheiro com API
+- [x] Armazenar token JWT, dados do usuário e platform_type
+- [x] Atualizar tela de login do Guincheiro (2 passos: CPF → Senha)
+- [x] Atualizar Dashboard Guincheiro para usar dados reais da API
+- [x] Atualizar Dashboard Vistoriador para usar dados reais da API
+- [x] Tela de seleção de perfil (Guincheiro/Vistoriador)
+- [x] Redirecionamento automático baseado em platform_type
+- [x] Limpeza automática de dados ao fazer logout
+- [x] Tratamento de erros com AppDialog
+- [x] Suprimir logs técnicos do axios
+- [ ] Implementar login Vistoriador (aguardando endpoint da API)
 
-### Fase 3: Dashboard
-- [ ] Dashboard Guincheiro (2 abas)
-- [ ] Dashboard Vistoriador (3 abas)
-- [ ] Listagem de chamados
-- [ ] Perfil do usuário
+### Fase 3: Dashboard ✅ CONCLUÍDA
+- [x] Dashboard Guincheiro (2 abas: Chamados + Perfil)
+- [x] Dashboard Vistoriador (3 abas: Home + Pagamentos + Perfil)
+- [x] Listagem de chamados (mockup)
+- [x] Perfil do usuário com dados reais da API
+- [x] Proteção de rotas (redireciona se não autenticado)
+- [ ] Integrar lista de chamados com API real
+- [ ] Integrar lista de pagamentos com API real
 
 ### Fase 4: Chamados (Guincho)
 - [ ] Tela de chamado ativo
@@ -1289,4 +1724,26 @@ JWT_SECRET=your-secret-key
 
 ---
 
-**Última atualização:** 2026-02-14
+## Changelog
+
+### 2026-02-15
+- ✅ Implementado login de guincheiro com integração completa à API
+- ✅ Criado serviço de API com axios (`lib/api.ts`)
+- ✅ Implementado salvamento de `platform_type` para redirecionamento automático
+- ✅ Corrigidos erros de logout e proteção de rotas
+- ✅ Implementada limpeza automática de dados ao fazer logout
+- ✅ Adicionado tratamento de erros com mensagens amigáveis (AppDialog)
+- ✅ Suprimidos logs técnicos do axios no console
+- ✅ Atualizado fluxo de login para 2 passos (CPF → Senha)
+- ✅ Documentado todo o processo de autenticação
+
+### 2026-02-14
+- ✅ Configuração inicial do ambiente de desenvolvimento
+- ✅ Resolução de problemas com Node.js 18 vs 20
+- ✅ Configuração do Android SDK no WSL
+- ✅ Criação de wrappers para ADB
+- ✅ Estrutura base do projeto
+
+---
+
+**Última atualização:** 2026-02-15

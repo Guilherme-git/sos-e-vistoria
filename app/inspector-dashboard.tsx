@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, Switch, FlatList, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,18 +67,29 @@ function PaymentCard({ index }: { index: number }) {
 
 export default function InspectorDashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { driver, logout, updatePhoto } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const { receivingCalls, setReceivingCalls, activeInspection, setActiveInspection, completedInspections } = useInspection();
   const [tabIndex, setTabIndex] = useState(0);
   const [showLogout, setShowLogout] = useState(false);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
 
+  // Redirecionar se não estiver autenticado
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      router.replace('/');
+    }
+  }, [isAuthenticated, user]);
+
   const handleLogout = async () => {
     setShowLogout(false);
     await logout();
-    router.replace('/');
   };
+
+  // Não renderizar se não estiver autenticado
+  if (!isAuthenticated || !user) {
+    return null;
+  }
 
   const handleToggle = async (val: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -86,6 +97,7 @@ export default function InspectorDashboardScreen() {
   };
 
   const handlePickPhoto = async () => {
+    // TODO: Implementar upload de foto de perfil via API
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -93,7 +105,8 @@ export default function InspectorDashboardScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      await updatePhoto(result.assets[0].uri);
+      // await updatePhoto(result.assets[0].uri);
+      console.log('Foto selecionada:', result.assets[0].uri);
     }
   };
 
@@ -132,7 +145,7 @@ export default function InspectorDashboardScreen() {
           <View style={styles.header}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.greeting} numberOfLines={1} ellipsizeMode="tail">
-                Olá, {driver?.name?.split(' ')[0] || 'Vistoriador'}
+                Olá, {user?.name?.split(' ')[0] || 'Vistoriador'}
               </Text>
               <Text style={styles.headerSub} numberOfLines={1} ellipsizeMode="tail">
                 Painel de vistorias
@@ -228,18 +241,14 @@ export default function InspectorDashboardScreen() {
             style={[styles.profileGradient, { paddingTop: topInset + 24 }]}
           >
             <Pressable onPress={handlePickPhoto} style={styles.avatarContainer}>
-              {driver?.photoUri ? (
-                <Image source={{ uri: driver.photoUri }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <MaterialIcons name="person" size={48} color={Colors.textTertiary} />
-                </View>
-              )}
+              <View style={styles.avatarPlaceholder}>
+                <MaterialIcons name="person" size={48} color={Colors.textTertiary} />
+              </View>
               <View style={styles.cameraButton}>
                 <MaterialIcons name="camera-alt" size={14} color={Colors.white} />
               </View>
             </Pressable>
-            <Text style={styles.profileName}>{driver?.name || 'Vistoriador'}</Text>
+            <Text style={styles.profileName}>{user?.name || 'Vistoriador'}</Text>
             <View style={styles.roleBadge}>
               <MaterialIcons name="verified" size={14} color={Colors.white} />
               <Text style={styles.roleBadgeText}>Vistoriador</Text>
@@ -247,8 +256,8 @@ export default function InspectorDashboardScreen() {
           </LinearGradient>
 
           <ScrollView style={styles.profileBody} showsVerticalScrollIndicator={false}>
-            <ProfileItem icon="badge" label="CPF" value={driver?.cnpjCpf || '--'} />
-            <ProfileItem icon="business" label="Empresa" value={driver?.company || '--'} />
+            <ProfileItem icon="badge" label="CPF" value={user?.cpf || '--'} />
+            <ProfileItem icon="phone" label="Telefone" value={user?.phone || '--'} />
             <ProfileItem icon="assignment" label="Vistorias realizadas" value={completedInspections.length.toString()} />
 
             <Pressable

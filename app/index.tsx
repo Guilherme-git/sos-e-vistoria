@@ -44,17 +44,19 @@ function RoleCard({ icon, title, subtitle, selected, onPress }: {
 
 export default function RoleSelectScreen() {
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, isLoading, role } = useAuth();
+  const { isAuthenticated, isLoading, platformType } = useAuth();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : Math.max(insets.bottom, 16);
 
+  // Redirecionar automaticamente se o usuário já estiver logado
   useEffect(() => {
-    if (!isLoading && isAuthenticated && role) {
-      router.replace(role === 'guincheiro' ? '/dashboard' : '/inspector-dashboard');
+    if (!isLoading && isAuthenticated && platformType) {
+      const targetRoute = platformType === 'assistance' ? '/dashboard' : '/inspector-dashboard';
+      router.replace(targetRoute);
     }
-  }, [isLoading, isAuthenticated, role]);
+  }, [isLoading, isAuthenticated, platformType]);
 
   if (isLoading) {
     return (
