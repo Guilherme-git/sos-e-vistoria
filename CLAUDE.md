@@ -1724,9 +1724,1142 @@ AsyncStorage.clear().then(() => console.log('Tudo limpo!'));
 
 ---
 
+## Implementação de Rastreamento GPS e Modal de Chamado (Concluída) ✅
+
+### Visão Geral
+
+Esta seção documenta a implementação completa do sistema de rastreamento de localização em tempo real e do modal de notificação de chamados no estilo Uber para o app Guincheiro.
+
+### 1. Rastreamento de Localização (GPS)
+
+#### 1.1. Arquitetura
+
+**Custom Hook:** `useLocationTracking.ts`
+- Gerencia estado de localização com Socket.IO WebSocket
+- Envia atualizações de localização a cada 10 segundos
+- Precisão alta (5-10 metros) usando `Location.Accuracy.High`
+- Reconexão automática em caso de falha
+- Tratamento completo de permissões e GPS
+
+**Tecnologias:**
+- `expo-location` - Obter coordenadas GPS
+- `socket.io-client` - Comunicação em tempo real com servidor
+- `react-native` - Listeners de AppState para detectar quando app volta ao foco
+
+#### 1.2. Fluxo de Rastreamento
+
+```
+1. Hook inicializado quando usuário faz login
+   ↓
+2. Verificar permissão de localização
+   - Se negada → Mostrar modal de permissão
+   ↓
+3. Verificar se GPS está ativado
+   - Se desativado → Mostrar modal GPS desativado
+   ↓
+4. Conectar ao WebSocket (Socket.IO)
+   - URL: http://192.168.0.5:3004
+   - Evento: 'driver:location:update'
+   ↓
+5. Obter localização atual (getCurrentPositionAsync)
+   - Accuracy: High (5-10m)
+   ↓
+6. Enviar para servidor via WebSocket
+   {
+     token: "jwt-token",
+     latitude: -16.688916,
+     longitude: -49.266110
+   }
+   ↓
+7. Aguardar 10 segundos
+   ↓
+8. Repetir passos 5-7 (loop infinito enquanto app ativo)
+```
+
+#### 1.3. Estados de Localização
+
+```typescript
+export type LocationStatus =
+  | 'disconnected'      // Desconectado do servidor
+  | 'connecting'        // Conectando ao WebSocket
+  | 'connected'         // Conectado e enviando localização
+  | 'error'             // Erro genérico
+  | 'permission_denied' // Permissão negada
+
+export interface LocationTrackingState {
+  status: LocationStatus;
+  lastUpdate: Date | null;          // Última atualização enviada
+  error: string | null;              // Mensagem de erro
+  needsPermission: boolean;          // Precisa pedir permissão
+  needsGpsEnabled: boolean;          // GPS desativado
+}
+```
+
+#### 1.4. Funções Principais
+
+**`startLocationTracking()`**
+- Verifica permissões de localização
+- Solicita permissão se necessário
+- Verifica se GPS está habilitado
+- Inicia loop de envio de localização a cada 10 segundos
+
+**`sendLocationToServer()`**
+- Envia coordenadas via Socket.IO
+- Recebe confirmação do servidor
+- Atualiza estado `lastUpdate`
+
+**`requestPermission()`**
+- Verifica status de permissão
+- Se `canAskAgain === false` → Abre configurações do sistema
+- Se `canAskAgain === true` → Solicita permissão novamente
+
+**`openLocationSettings()`**
+- Abre configurações do sistema para ativar GPS
+
+**`cleanup()`**
+- Limpa intervalos
+- Desconecta WebSocket
+- Reseta todos os estados
+- Chamado ao desmontar componente ou fazer logout
+
+#### 1.5. Modais de Permissão e GPS
+
+**Modal de Permissão Negada:**
+```typescript
+<AppDialog
+  visible={needsPermission}
+  title="Permissão de Localização"
+  message="Para usar o app, precisamos da sua localização em tempo real..."
+  onClose={() => {}}  // Não pode fechar sem dar permissão
+  actions={[
+    {
+      label: 'Abrir Configurações',
+      onPress: requestPermission,
+      mode: 'contained'
+    }
+  ]}
+/>
+```
+
+**Modal de GPS Desativado:**
+```typescript
+<AppDialog
+  visible={needsGpsEnabled}
+  title="GPS Desativado"
+  message="Por favor, ative o GPS do seu dispositivo..."
+  actions={[
+    {
+      label: 'Abrir Configurações',
+      onPress: openLocationSettings,
+      mode: 'contained'
+    }
+  ]}
+/>
+```
+
+#### 1.6. Integração no Dashboard
+
+```typescript
+// app/dashboard.tsx
+const {
+  status,
+  lastUpdate,
+  error,
+  needsPermission,
+  needsGpsEnabled,
+  requestPermission,
+  openLocationSettings,
+} = useLocationTracking(token, true);
+
+// Renderizar indicador de status
+{status === 'connected' && (
+  <View style={styles.locationIndicator}>
+    <MaterialIcons name="location-on" size={16} color={Colors.success} />
+    <Text>Localização ativa</Text>
+  </View>
+)}
+```
+
+#### 1.7. Variação Normal de GPS
+
+**Importante:** Mesmo com o dispositivo parado, é normal a localização variar ligeiramente devido a:
+- Precisão do GPS (~5-10 metros)
+- Interferência de prédios/árvores
+- Movimento de satélites GPS
+- Condições atmosféricas
+
+Variações de até 50 metros são normais mesmo parado.
+
+#### 1.8. Endpoints WebSocket
+
+**Servidor:** `http://192.168.0.5:3004`
+
+**Eventos Emitidos:**
+```typescript
+socket.emit('driver:location:update', {
+  token: string,
+  latitude: number,
+  longitude: number
+}, (response) => {
+  if (response.success) {
+    console.log('✅ Localização salva');
+  }
+});
+```
+
+**Eventos Recebidos:**
+```typescript
+socket.on('driver:location:updated', (data) => {
+  // Confirmação de atualização
+  console.log('Localização atualizada no servidor');
+});
+
+socket.on('connect', () => {
+  console.log('✅ WebSocket conectado');
+});
+
+socket.on('disconnect', () => {
+  console.log('❌ WebSocket desconectado');
+});
+```
+
+#### 1.9. Recebimento de Chamados em Tempo Real
+
+**WebSocket Room:** `towing_drivers`
+
+Quando o guincheiro está conectado e com GPS ativo, ele automaticamente entra no room `towing_drivers` para receber notificações de novos chamados.
+
+**Fluxo:**
+```
+1. WebSocket conecta
+   ↓
+2. Entra no room: socket.emit('join', 'towing_drivers')
+   ↓
+3. Servidor envia evento quando há novo chamado
+   Event: 'call:new'
+   ↓
+4. App recebe os dados e mostra modal
+```
+
+**Payload do Evento `call:new`:**
+```typescript
+interface IncomingCall {
+  call_id: string;                      // ID do chamado
+  address: string;                      // Endereço do serviço
+  observation?: string;                 // Observações
+  service_type: string;                 // "towing", "battery", etc.
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+  total_drivers: number;                // Total de guincheiros notificados
+  drivers: Array<{
+    id: string;
+    name: string;
+    distance_km: number;                // Distância em km
+    provider: {
+      id: string;
+      name: string;
+      cnpj: string;
+    };
+  }>;
+  timestamp: string;                    // ISO timestamp
+}
+```
+
+**Exemplo de Payload:**
+```json
+{
+  "call_id": "43614",
+  "address": "Av. Paulista, 1000 - Bela Vista, São Paulo - SP",
+  "observation": "Veículo com pneu furado, necessita guincho urgente",
+  "service_type": "towing",
+  "location": {
+    "latitude": -23.5505,
+    "longitude": -46.6333
+  },
+  "total_drivers": 1,
+  "drivers": [
+    {
+      "id": "542",
+      "name": "Guilherme Matos Ataides",
+      "distance_km": 807.86,
+      "provider": {
+        "id": "321",
+        "name": "CHAVEIRO GLOBO",
+        "cnpj": "00.132.777/0001-00"
+      }
+    }
+  ],
+  "timestamp": "2026-02-16T03:45:48.736Z"
+}
+```
+
+**Implementação no Hook:**
+```typescript
+// useLocationTracking.ts
+socket.on('connect', () => {
+  // Entrar no room de guincheiros
+  socket.emit('join', 'towing_drivers');
+  console.log('📡 Entrou no room: towing_drivers');
+});
+
+// Escutar novos chamados
+socket.on('call:new', (callData: IncomingCall) => {
+  console.log('🚨 Novo chamado recebido:', callData);
+  if (onNewCall) {
+    onNewCall(callData);
+  }
+});
+```
+
+**Tradução de Tipos de Serviço:**
+
+O campo `service_type` do WebSocket é mapeado para labels em PT-BR através do arquivo `lib/serviceTypes.ts`:
+
+```typescript
+// Exemplos de tradução
+'towing' → 'Guincho'
+'battery_charge_light' → 'Carga de Bateria Leve'
+'tire_change' → 'Troca de Pneu'
+'locksmith' → 'Chaveiro'
+'empty_tank' → 'Tanque Vazio'
+```
+
+Total de **26 tipos de serviço** mapeados:
+- 🚛 Guincho: 8 tipos
+- 🔋 Bateria: 6 tipos
+- 🛞 Pneu: 4 tipos
+- 🔑 Chaveiro: 4 tipos
+- ⛽ Combustível: 2 tipos
+- 🔧 Outros: 2 tipos
+
+**Uso no Dashboard:**
+```typescript
+// app/dashboard.tsx
+import { getServiceTypeLabel } from '@/lib/serviceTypes';
+
+const handleNewCall = useCallback((call: IncomingCall) => {
+  console.log('🚨 Processando novo chamado:', call);
+
+  // Converter dados do WebSocket para formato do modal
+  const callData = {
+    id: call.call_id,
+    pickupAddress: call.address,
+    serviceType: getServiceTypeLabel(call.service_type), // Traduzir para PT-BR
+  };
+
+  setIncomingCallData(callData);
+  setShowIncomingCall(true);
+}, []);
+
+const locationState = useLocationTracking(
+  token,
+  isAuthenticated && isScreenFocused,
+  handleNewCall  // Callback para novos chamados
+);
+```
+
+**Importante:**
+- O modal aparece automaticamente quando recebe o evento `call:new`
+- Por enquanto, mostra apenas o endereço do serviço (`address`)
+- O timer de 60 segundos dá tempo para o motorista aceitar ou rejeitar
+- Campos opcionais (distância, tempo estimado, placa) só aparecem se disponíveis
+
+---
+
+### 1.10. Som de Notificação
+
+**Arquivo de Áudio:** `toque-notificacao.mp3` (raiz do projeto)
+
+Quando o guincheiro recebe um novo chamado via WebSocket, o app toca um som de notificação sincronizado com a aparição do modal.
+
+#### 1.10.1. Tecnologia
+
+**Biblioteca:** `expo-audio` (v16.0.8)
+
+⚠️ **Importante:** O projeto migrou de `expo-av` para `expo-audio` porque:
+- `expo-av` está **deprecated** no SDK 54
+- `expo-audio` é o substituto oficial da Expo
+- API mais simples e moderna
+
+#### 1.10.2. Hook Customizado
+
+**Arquivo:** `lib/useNotificationSound.ts`
+
+```typescript
+import { useAudioPlayer, AudioSource } from 'expo-audio';
+
+export function useNotificationSound() {
+  // Caminho do arquivo de som (na raiz do projeto)
+  const audioSource: AudioSource = require('../toque-notificacao.mp3');
+
+  const player = useAudioPlayer(audioSource, {
+    shouldPlay: false,
+  });
+
+  /**
+   * Toca o som de notificação 1 vez
+   */
+  const playNotificationSound = () => {
+    try {
+      player.seekTo(0); // Voltar ao início
+      player.play();
+      console.log('🔊 Tocando notificação');
+    } catch (error) {
+      console.error('❌ Erro ao tocar som:', error);
+    }
+  };
+
+  return { playNotificationSound };
+}
+```
+
+#### 1.10.3. Integração no Dashboard
+
+```typescript
+// app/dashboard.tsx
+import { useNotificationSound } from '@/lib/useNotificationSound';
+
+export default function DashboardScreen() {
+  // Som de notificação
+  const { playNotificationSound } = useNotificationSound();
+
+  // Handler para quando receber um novo chamado via WebSocket
+  const handleNewCall = useCallback((call: IncomingCall) => {
+    console.log('🚨 Processando novo chamado:', call);
+
+    // Tocar som de notificação (1 vez)
+    playNotificationSound();
+
+    // Converter dados e mostrar modal
+    const callData = {
+      id: call.call_id,
+      pickupAddress: call.address,
+      serviceType: getServiceTypeLabel(call.service_type),
+    };
+
+    setIncomingCallData(callData);
+    setShowIncomingCall(true);
+  }, [playNotificationSound]);
+
+  // ...
+}
+```
+
+#### 1.10.4. Fluxo de Execução
+
+```
+1. WebSocket recebe evento 'call:new'
+   ↓
+2. handleNewCall() é chamado
+   ↓
+3. playNotificationSound() executa (SIMULTÂNEO com passo 4)
+   ├─ player.seekTo(0)
+   └─ player.play()
+   ↓
+4. Modal aparece (setShowIncomingCall(true))
+   ↓
+5. Usuário ouve: 🔊 DING + vê o modal 📱
+```
+
+#### 1.10.5. Características do Som
+
+**Especificações do Arquivo:**
+- **Nome:** `toque-notificacao.mp3`
+- **Localização:** Raiz do projeto
+- **Formato:** MP3
+- **Duração recomendada:** 0.5 - 1.5 segundos
+- **Estilo:** Som curto e agradável (tipo "ding" ou "ping")
+
+**Comportamento:**
+- ✅ Toca **1 vez** quando recebe chamado
+- ✅ Sincronizado com aparição do modal
+- ✅ Não precisa de permissões especiais
+- ✅ Funciona em background (se app estiver aberto)
+
+#### 1.10.6. API do expo-audio vs expo-av
+
+**Migração de expo-av para expo-audio:**
+
+| expo-av (deprecated) | expo-audio (novo) |
+|----------------------|-------------------|
+| `Audio.setAudioModeAsync()` | Não necessário |
+| `Audio.Sound.createAsync()` | `useAudioPlayer(source)` |
+| `sound.replayAsync()` | `player.play()` + `player.seekTo(0)` |
+| `sound.unloadAsync()` | Automático (cleanup do hook) |
+| Complexo, muitas linhas | Simples, poucas linhas |
+
+**Vantagens do expo-audio:**
+- API mais simples e intuitiva
+- Hook React nativo (`useAudioPlayer`)
+- Melhor performance
+- Suporte oficial da Expo
+- Cleanup automático
+
+#### 1.10.7. Troubleshooting
+
+**Erro: "Cannot find module"**
+```
+ERROR  ❌ Erro ao carregar som: [Error: Cannot find module '@/assets/sounds/toque-notificacao.mp3']
+```
+
+**Solução:**
+- Verificar que o arquivo `toque-notificacao.mp3` está na **raiz do projeto**
+- Usar caminho relativo: `require('../toque-notificacao.mp3')`
+- Reiniciar o Metro Bundler
+
+**Warning: "expo-av has been deprecated"**
+```
+WARN  [expo-av]: Expo AV has been deprecated and will be removed in SDK 54.
+```
+
+**Solução:**
+- Usar `expo-audio` ao invés de `expo-av`
+- Desinstalar expo-av: `npm uninstall expo-av`
+- Instalar expo-audio: `npm install expo-audio`
+
+**Som não toca:**
+- Verificar se o arquivo MP3 está correto
+- Verificar volume do dispositivo
+- Verificar se há erros no console
+- Testar em dispositivo físico (emulador pode ter problemas de áudio)
+
+#### 1.10.8. Exemplo de Teste
+
+```typescript
+// Para testar o som diretamente no console
+const { playNotificationSound } = useNotificationSound();
+playNotificationSound(); // 🔊 Deve tocar o som
+```
+
+---
+
+### 2. Modal de Chamado Estilo Uber
+
+#### 2.1. Design Pattern: Bottom Sheet
+
+**Componente:** `IncomingCallModal.tsx`
+
+Inspirado no padrão de design do Uber:
+- Modal de baixo para cima (bottom sheet)
+- Timer circular de 60 segundos
+- Animações suaves com Reanimated
+- Feedback tátil (vibração)
+- Sem som (apenas haptics)
+- Não fecha automaticamente quando timer chega a zero
+
+#### 2.2. Estrutura do Modal
+
+```typescript
+interface CallData {
+  id: string;
+  clientName: string;
+  clientPhone: string;
+  pickupAddress: string;           // Endereço de origem
+  deliveryAddress?: string;        // Endereço de destino (opcional)
+  distance: string;                // "8.5 km"
+  estimatedTime: string;           // "15 min"
+  serviceType: string;             // "Reboque", "Chaveiro", etc.
+  vehiclePlate?: string;           // "ABC-1234"
+}
+```
+
+#### 2.3. Timer Circular SVG
+
+**Componente:** `TimerRing`
+
+**Características:**
+- SVG circular com `Circle` do `react-native-svg`
+- Tamanho: 72x72px
+- Stroke width: 4px
+- Animação de preenchimento circular
+- Cores dinâmicas:
+  - **60-11 segundos:** Azul (`Colors.primary`)
+  - **10-1 segundos:** Vermelho (`Colors.error`) + vibração
+  - **Background:** Cinza claro (`Colors.greyLight`)
+
+**Cálculo do Progresso:**
+```typescript
+const progress = timeLeft / total;  // 0 a 1
+const circumference = 2 * Math.PI * radius;
+const strokeDashoffset = circumference * (1 - progress);
+```
+
+**Código SVG:**
+```typescript
+<Svg width={72} height={72} style={{ transform: [{ rotate: '-90deg' }] }}>
+  {/* Background ring */}
+  <Circle
+    cx={36}
+    cy={36}
+    r={34}
+    stroke={Colors.greyLight}
+    strokeWidth={4}
+    fill="none"
+  />
+
+  {/* Progress ring */}
+  <Circle
+    cx={36}
+    cy={36}
+    r={34}
+    stroke={isUrgent ? Colors.error : Colors.primary}
+    strokeWidth={4}
+    fill="none"
+    strokeDasharray={circumference}
+    strokeDashoffset={strokeDashoffset}
+    strokeLinecap="round"
+  />
+</Svg>
+```
+
+#### 2.4. Estados do Timer
+
+```typescript
+const [timeLeft, setTimeLeft] = useState(60);  // Começa em 60 segundos
+
+const isUrgent = timeLeft <= 10;  // Últimos 10 segundos = urgente
+
+useEffect(() => {
+  if (visible) {
+    setTimeLeft(timeout);  // Reset para 60
+
+    // Vibração inicial (dupla)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setTimeout(() =>
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), 200
+    );
+
+    // Countdown
+    const interval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;  // Para no zero, NÃO fecha modal
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }
+}, [visible]);
+
+// Vibração nos últimos 10 segundos
+useEffect(() => {
+  if (timeLeft <= 10 && timeLeft > 0) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+}, [timeLeft]);
+```
+
+#### 2.5. Seções do Modal
+
+**1. Header**
+- Ícone de tipo de serviço (caminhão)
+- Título: "Novo Chamado"
+- Tipo de serviço: "Reboque", "Chaveiro", etc.
+- Timer circular
+
+**2. Stats Bar (Informações Rápidas)**
+- Distância: "8.5 km"
+- Tempo estimado: "15 min"
+- Placa do veículo: "ABC-1234" (opcional)
+
+**3. Route Section (Rota)**
+- **Origem:** Endereço de coleta
+- **Destino:** Endereço de entrega (se houver)
+- Linha conectora entre origem e destino
+- Ícones coloridos (azul = origem, vermelho = destino)
+
+**4. Actions (Botões)**
+- **Rejeitar:** Botão circular com "X"
+- **Aceitar:** Botão principal verde com texto "Aceitar Chamado"
+
+#### 2.6. Animações
+
+**Entrada do Modal:**
+```typescript
+<Animated.View
+  entering={SlideInDown.springify().damping(18).stiffness(140)}
+  style={styles.sheet}
+>
+  {/* Conteúdo */}
+</Animated.View>
+```
+
+**Entrada das Seções:**
+```typescript
+// Stats Bar - delay 150ms
+<Animated.View entering={FadeIn.delay(150).duration(300)}>
+
+// Route Section - delay 250ms
+<Animated.View entering={FadeInUp.delay(250).duration(300)}>
+
+// Actions - delay 350ms
+<Animated.View entering={FadeInUp.delay(350).duration(300)}>
+```
+
+**Botão Aceitar (Pulse):**
+```typescript
+const pulseScale = useSharedValue(1);
+
+const acceptPulse = useAnimatedStyle(() => ({
+  transform: [{ scale: pulseScale.value }]
+}));
+
+<Pressable
+  onPressIn={() => {
+    pulseScale.value = withSpring(0.95, { damping: 12 });
+  }}
+  onPressOut={() => {
+    pulseScale.value = withSpring(1, { damping: 12 });
+  }}
+  onPress={() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onAccept();
+  }}
+>
+  <Animated.View style={[styles.acceptBtn, acceptPulse]}>
+    <MaterialIcons name="check" size={24} color={Colors.white} />
+    <Text style={styles.acceptText}>Aceitar Chamado</Text>
+  </Animated.View>
+</Pressable>
+```
+
+#### 2.7. Feedback Háptico
+
+**Tipos de vibração:**
+```typescript
+// Ao abrir modal
+Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);  // 2x
+
+// A cada segundo nos últimos 5 segundos
+Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+// Ao clicar em "Rejeitar"
+Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+// Ao clicar em "Aceitar"
+Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+```
+
+#### 2.8. Estilos e Cores
+
+**Paleta de Cores:**
+```typescript
+Colors.surface        // Branco - fundo do modal
+Colors.primary        // Azul - timer normal, origem
+Colors.error          // Vermelho - timer urgente, destino
+Colors.greyLight      // Cinza claro - timer background
+Colors.textPrimary    // Preto - títulos
+Colors.textSecondary  // Cinza - subtítulos
+Colors.textTertiary   // Cinza claro - labels
+Colors.divider        // Cinza - linhas divisórias
+Colors.background     // Cinza muito claro - stats bar
+```
+
+**Espaçamento:**
+```typescript
+paddingHorizontal: 24px    // Margens laterais
+paddingTop: 20px           // Espaço acima dos botões
+paddingBottom: 8px         // Espaço abaixo dos botões
+marginBottom: 20px         // Entre seções
+gap: 12px                  // Entre botões
+```
+
+**Botões:**
+```typescript
+// Rejeitar
+width: 60px
+height: 60px
+borderRadius: 30px
+
+// Aceitar
+height: 60px
+borderRadius: 16px
+paddingHorizontal: 24px
+flex: 1
+```
+
+#### 2.9. Simulação de Chamado (Para Testes)
+
+**Código de simulação no Dashboard:**
+```typescript
+// SIMULAÇÃO: Mostrar chamado após 1 segundo (REMOVER EM PRODUÇÃO)
+useEffect(() => {
+  if (user && tab === 'calls') {
+    const simulationTimer = setTimeout(() => {
+      const fakeCall = {
+        id: 'SIMULATED-' + Date.now(),
+        clientName: 'João Silva',
+        clientPhone: '(62) 98765-4321',
+        pickupAddress: 'Av. Goiás, 1234 - Setor Central, Goiânia - GO',
+        deliveryAddress: 'Rua 10, 567 - Setor Oeste, Goiânia - GO',
+        distance: '8.5 km',
+        estimatedTime: '15 min',
+        serviceType: 'Reboque',
+        vehiclePlate: 'ABC-1234',
+      };
+      setIncomingCallData(fakeCall);
+      setShowIncomingCall(true);
+    }, 1000);
+
+    return () => clearTimeout(simulationTimer);
+  }
+}, [user, tab]);
+```
+
+**⚠️ IMPORTANTE:** Remover esta simulação em produção! Em produção, o chamado deve vir via:
+- WebSocket (tempo real)
+- Push notification (se app em background)
+- Deep link (se app fechado)
+
+#### 2.10. Handlers de Ação
+
+```typescript
+const handleAcceptCall = () => {
+  console.log('✅ Chamado aceito:', incomingCallData?.id);
+
+  // TODO: Enviar aceitação para API
+  // PUT /call/{encryptedKey}/accept
+
+  setShowIncomingCall(false);
+  setIncomingCallData(null);
+
+  // TODO: Navegar para tela de chamado ativo
+  // router.push('/active-call');
+};
+
+const handleRejectCall = () => {
+  console.log('❌ Chamado rejeitado:', incomingCallData?.id);
+
+  // TODO: Enviar rejeição para API (se necessário)
+
+  setShowIncomingCall(false);
+  setIncomingCallData(null);
+};
+```
+
+#### 2.11. Uso no Dashboard
+
+```typescript
+import IncomingCallModal from '@/components/IncomingCallModal';
+
+const [showIncomingCall, setShowIncomingCall] = useState(false);
+const [incomingCallData, setIncomingCallData] = useState<any>(null);
+
+return (
+  <>
+    {/* Dashboard content */}
+
+    {/* Modal de chamado */}
+    <IncomingCallModal
+      visible={showIncomingCall}
+      callData={incomingCallData}
+      onAccept={handleAcceptCall}
+      onReject={handleRejectCall}
+      timeout={60}
+    />
+  </>
+);
+```
+
+#### 2.12. Problemas Resolvidos
+
+**1. Timer invisível (cores brancas)**
+
+**Problema:**
+```typescript
+// ❌ ANTES: Timer branco em fundo branco
+stroke="rgba(255,255,255,0.15)"   // Background
+stroke={isUrgent ? '#FF6B6B' : Colors.white}  // Progress
+color: Colors.white                // Texto
+```
+
+**Solução:**
+```typescript
+// ✅ DEPOIS: Cores visíveis
+stroke={Colors.greyLight}          // Background cinza
+stroke={isUrgent ? Colors.error : Colors.primary}  // Azul/vermelho
+color: Colors.primary              // Texto azul
+```
+
+**2. Espaçamento insuficiente nos botões**
+
+**Problema:**
+- Pouco espaço entre botões e fim da tela
+- Botão "Aceitar" muito pequeno
+
+**Solução:**
+```typescript
+// Aumentado paddingTop de 8 para 20
+paddingTop: 20px
+
+// Aumentado altura de 56 para 60
+height: 60px
+
+// Adicionado padding horizontal
+paddingHorizontal: 24px
+```
+
+---
+
+### 3. Arquivos Modificados
+
+#### 3.1. `/lib/useLocationTracking.ts`
+**Novo arquivo** - Custom hook de rastreamento
+- Gerenciamento de estado de localização
+- Integração com Socket.IO WebSocket
+- Tratamento de permissões e GPS
+- Loop de atualização a cada 10 segundos
+- Precisão alta (5-10m)
+
+#### 3.2. `/components/IncomingCallModal.tsx`
+**Novo arquivo** - Modal de chamado estilo Uber
+- Bottom sheet pattern
+- Timer circular SVG
+- Animações com Reanimated
+- Feedback háptico
+- RoutePoint component para origem/destino
+- TimerRing component para countdown
+
+#### 3.3. `/app/dashboard.tsx`
+**Modificado** - Dashboard do guincheiro
+- Integração do `useLocationTracking`
+- Modais de permissão e GPS
+- IncomingCallModal
+- Simulação de chamado (temporária)
+- Handlers de aceitar/rejeitar
+
+#### 3.4. `/.env`
+**Modificado** - Configuração da API
+```bash
+API_BASE_URL=http://192.168.0.5:3004
+```
+Usado para testar em dispositivo físico na rede local.
+
+#### 3.5. `/lib/useNotificationSound.ts`
+**Novo arquivo** - Custom hook para som de notificação
+- Usa `expo-audio` (substituto do expo-av deprecated)
+- Hook `useAudioPlayer` para gerenciar áudio
+- Toca som 1 vez quando recebe chamado
+- API simplificada e moderna
+- Arquivo de som: `toque-notificacao.mp3` (raiz do projeto)
+
+#### 3.6. `/lib/serviceTypes.ts`
+**Novo arquivo** - Mapeamento de tipos de serviço
+- 26 tipos de serviço mapeados
+- Função `getServiceTypeLabel()` para tradução PT-BR
+- Função `getServiceTypeIcon()` para ícones por categoria
+- Categorias: Guincho, Bateria, Pneu, Chaveiro, Combustível, Outros
+
+#### 3.7. `/toque-notificacao.mp3`
+**Novo arquivo** - Arquivo de áudio de notificação
+- Localização: Raiz do projeto
+- Formato: MP3
+- Tocado quando recebe novo chamado via WebSocket
+- Sincronizado com aparição do modal
+
+---
+
+### 4. Dependências Adicionadas
+
+```json
+{
+  "socket.io-client": "^4.8.3",         // WebSocket
+  "react-native-svg": "15.12.1",        // Timer SVG
+  "react-native-reanimated": "~4.1.1",  // Animações
+  "expo-haptics": "~15.0.8",            // Vibração
+  "expo-location": "~19.0.8",           // GPS
+  "expo-audio": "^16.0.8"               // Som de notificação (substituto do expo-av)
+}
+```
+
+---
+
+### 5. Testes Realizados
+
+#### 5.1. Rastreamento GPS
+
+✅ **Teste 1: Permissão Negada**
+- App solicita permissão
+- Usuário nega
+- Modal de permissão aparece
+- Botão abre configurações do sistema
+
+✅ **Teste 2: GPS Desativado**
+- GPS desligado nas configurações
+- Modal de GPS aparece
+- Botão abre configurações do sistema
+
+✅ **Teste 3: Conexão WebSocket**
+- WebSocket conecta com sucesso
+- Logs mostram conexão estabelecida
+- Status muda para "connected"
+
+✅ **Teste 4: Envio de Localização**
+- Localização enviada a cada 10 segundos
+- Servidor recebe e confirma
+- LastUpdate atualizado
+- Variação normal de GPS (~5-10m)
+
+✅ **Teste 5: Reconexão Automática**
+- Servidor desligado
+- Status muda para "disconnected"
+- Servidor religado
+- WebSocket reconecta automaticamente
+
+#### 5.2. Modal de Chamado
+
+✅ **Teste 1: Aparição e Animações**
+- Modal sobe de baixo para cima
+- Todas as seções animam na ordem correta
+- Timer aparece imediatamente
+
+✅ **Teste 2: Timer**
+- Conta de 60 até 0
+- Cores mudam de azul para vermelho aos 10 segundos
+- Vibração a cada segundo nos últimos 10 segundos
+- Para no zero sem fechar modal
+
+✅ **Teste 3: Botões**
+- Botão rejeitar vibra e fecha modal
+- Botão aceitar vibra (sucesso) e fecha modal
+- Animação de pulse no botão aceitar funciona
+
+✅ **Teste 4: Responsividade**
+- Adapta-se a diferentes tamanhos de tela
+- Safe area insets funcionam corretamente
+- Espaçamentos adequados
+
+---
+
+### 6. Próximas Etapas
+
+#### 6.1. Rastreamento GPS
+- [ ] Implementar rastreamento em background (foreground service)
+- [ ] Adicionar notificação persistente "Localização ativa"
+- [ ] Otimizar consumo de bateria
+- [ ] Implementar fallback para rede (se GPS indisponível)
+- [ ] Adicionar logs de debug desabilitáveis
+
+#### 6.2. Modal de Chamado
+- [ ] Integrar com API real (receber chamados via WebSocket)
+- [ ] Implementar aceitação de chamado (PUT /call/{key}/accept)
+- [ ] Implementar rejeição de chamado (se necessário)
+- [ ] Adicionar deep link para abrir app com chamado
+- [ ] Implementar push notification quando app em background
+- [ ] Remover simulação de chamado
+- [ ] Adicionar tratamento de erro se aceitação falhar
+- [ ] Navegar para tela de chamado ativo ao aceitar
+
+#### 6.3. Tela de Chamado Ativo
+- [ ] Criar tela `/app/active-call.tsx`
+- [ ] Mostrar informações completas do chamado
+- [ ] Integrar mapa com rota
+- [ ] Botões de contato (WhatsApp, Telefone, Navegação)
+- [ ] Timeline de status
+- [ ] Vistoria (Check-in/Check-out)
+
+---
+
+### 7. Lições Aprendidas
+
+#### 7.1. GPS e Localização
+- GPS varia naturalmente mesmo parado (~5-10m é normal)
+- Accuracy.High consome mais bateria, mas é necessário
+- Sempre verificar GPS ativado, não só permissão
+- AppState listener é essencial para detectar volta do app
+
+#### 7.2. WebSocket
+- Socket.IO reconecta automaticamente
+- Sempre limpar conexão no cleanup
+- Callback no emit garante confirmação de recebimento
+- Timeout necessário para evitar travamentos
+
+#### 7.3. Animações
+- react-native-reanimated é mais performático que Animated
+- Delays sequenciais criam efeito "cascata" agradável
+- Feedback háptico melhora muito a experiência
+- withSpring é mais natural que withTiming para botões
+
+#### 7.4. Design
+- Cores devem contrastar com o fundo (óbvio mas importante!)
+- Bottom sheet é mais intuitivo que modal centralizado
+- Timer visual é melhor que só texto
+- Vibração é mais universal que som (acessibilidade)
+
+#### 7.5. Debug
+- Console.log estratégicos ajudam muito
+- Testar em dispositivo real sempre que possível
+- Emulador não simula rotas GPS corretamente
+- Chrome DevTools útil para inspecionar WebSocket
+
+---
+
 ## Changelog
 
+### 2026-02-16
+
+**Integração WebSocket para Recebimento de Chamados:**
+- ✅ Implementado listener `call:new` no WebSocket
+- ✅ Entrada automática no room `towing_drivers` ao conectar
+- ✅ Interface `IncomingCall` para tipagem dos dados do WebSocket
+- ✅ Callback `onNewCall` no hook `useLocationTracking`
+- ✅ Removida simulação de chamado do dashboard
+- ✅ Modal agora aparece apenas ao receber evento real do WebSocket
+- ✅ Campos opcionais no modal (distance, estimatedTime, vehiclePlate)
+- ✅ Renderização condicional da statsBar baseada em dados disponíveis
+- ✅ Por enquanto exibindo apenas o endereço (`address`) no modal
+- ✅ Documentação completa da integração WebSocket
+- ✅ Exemplos de payload do evento `call:new`
+
+**Ajustes no Timer do Modal:**
+- ✅ Aumentado timeout de 15 para 60 segundos
+- ✅ Threshold de urgência ajustado de 5 para 10 segundos
+- ✅ Vibração nos últimos 10 segundos (ao invés de 5)
+- ✅ Documentação atualizada com novos valores
+
+**Tradução de Tipos de Serviço:**
+- ✅ Criado arquivo `lib/serviceTypes.ts` com mapeamento completo
+- ✅ Função `getServiceTypeLabel()` para traduzir service_type
+- ✅ Função `getServiceTypeIcon()` para ícones por categoria
+- ✅ 26 tipos de serviço mapeados (Guincho, Bateria, Pneu, Chaveiro, Combustível, Outros)
+- ✅ Modal agora exibe tipo de serviço em português
+- ✅ Documentação completa com exemplos
+
+**Som de Notificação:**
+- ✅ Migrado de `expo-av` (deprecated) para `expo-audio` (oficial SDK 54)
+- ✅ Criado hook `useNotificationSound` com API moderna
+- ✅ Hook `useAudioPlayer` do expo-audio para gerenciar áudio
+- ✅ Som toca **1 vez** quando recebe chamado (sincronizado com modal)
+- ✅ Arquivo de som: `toque-notificacao.mp3` (raiz do projeto)
+- ✅ Carregamento automático via hook React
+- ✅ Cleanup automático ao desmontar componente
+- ✅ API simplificada: `player.play()` + `player.seekTo(0)`
+- ✅ Documentação completa com troubleshooting
+- ✅ Comparação expo-av vs expo-audio documentada
+
 ### 2026-02-15
+
+**Rastreamento GPS e Modal de Chamado:**
+- ✅ Implementado custom hook `useLocationTracking`
+- ✅ Integração com Socket.IO para localização em tempo real
+- ✅ Precisão GPS alta (5-10 metros)
+- ✅ Envio de localização a cada 10 segundos
+- ✅ Modais de permissão e GPS desativado
+- ✅ Componente `IncomingCallModal` estilo Uber
+- ✅ Timer circular SVG com animação
+- ✅ Feedback háptico (vibração)
+- ✅ Animações suaves com Reanimated
+- ✅ RoutePoint component para origem/destino
+- ✅ Correção de cores do timer (visibilidade)
+- ✅ Ajuste de espaçamentos e tamanhos de botões
+- ✅ Documentação completa da implementação
+
+**Autenticação:**
 - ✅ Implementado login de guincheiro com integração completa à API
 - ✅ Criado serviço de API com axios (`lib/api.ts`)
 - ✅ Implementado salvamento de `platform_type` para redirecionamento automático
@@ -1746,4 +2879,4 @@ AsyncStorage.clear().then(() => console.log('Tudo limpo!'));
 
 ---
 
-**Última atualização:** 2026-02-15
+**Última atualização:** 2026-02-16

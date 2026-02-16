@@ -15,7 +15,34 @@ export interface LocationTrackingState {
   needsGpsEnabled: boolean;
 }
 
-export function useLocationTracking(token: string | null, enabled: boolean = true) {
+export interface IncomingCall {
+  call_id: string;
+  address: string;
+  observation?: string;
+  service_type: string;
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+  total_drivers: number;
+  drivers: Array<{
+    id: string;
+    name: string;
+    distance_km: number;
+    provider: {
+      id: string;
+      name: string;
+      cnpj: string;
+    };
+  }>;
+  timestamp: string;
+}
+
+export function useLocationTracking(
+  token: string | null,
+  enabled: boolean = true,
+  onNewCall?: (call: IncomingCall) => void
+) {
   const [state, setState] = useState<LocationTrackingState>({
     status: 'disconnected',
     lastUpdate: null,
@@ -93,9 +120,14 @@ export function useLocationTracking(token: string | null, enabled: boolean = tru
     socket.on('connect', () => {
       console.log('✅ WebSocket conectado! ID:', socket.id);
       setState((prev) => ({ ...prev, status: 'connected', error: null }));
+
+      // Entrar no room de guincheiros para receber chamados
+      socket.emit('join', 'towing_drivers');
+      console.log('📡 Entrou no room: towing_drivers');
     });
 
     socket.on('disconnect', () => {
+      console.log('❌ WebSocket desconectado');
       setState((prev) => ({ ...prev, status: 'disconnected' }));
     });
 
@@ -122,6 +154,14 @@ export function useLocationTracking(token: string | null, enabled: boolean = tru
     // Receber confirmação de atualização (opcional)
     socket.on('driver:location:updated', (data) => {
       setState((prev) => ({ ...prev, lastUpdate: new Date() }));
+    });
+
+    // Escutar novos chamados
+    socket.on('call:new', (callData: IncomingCall) => {
+      console.log('🚨 Novo chamado recebido:', callData);
+      if (onNewCall) {
+        onNewCall(callData);
+      }
     });
 
     socketRef.current = socket;

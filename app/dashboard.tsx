@@ -14,7 +14,9 @@ import IncomingCallModal from '@/components/IncomingCallModal';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCalls, CallRecord } from '@/contexts/CallsContext';
-import { useLocationTracking, LocationStatus } from '@/lib/useLocationTracking';
+import { useLocationTracking, LocationStatus, IncomingCall } from '@/lib/useLocationTracking';
+import { getServiceTypeLabel } from '@/lib/serviceTypes';
+import { useNotificationSound } from '@/lib/useNotificationSound';
 import * as Crypto from 'expo-crypto';
 
 const NAV_ITEMS = [
@@ -133,8 +135,33 @@ export default function DashboardScreen() {
   const [showIncomingCall, setShowIncomingCall] = useState(false);
   const [incomingCallData, setIncomingCallData] = useState<any>(null);
 
+  // Som de notificação
+  const { playNotificationSound } = useNotificationSound();
+
+  // Handler para quando receber um novo chamado via WebSocket
+  const handleNewCall = useCallback((call: IncomingCall) => {
+    console.log('🚨 Processando novo chamado:', call);
+
+    // Tocar som de notificação (2 vezes)
+    playNotificationSound();
+
+    // Converter dados do WebSocket para formato do modal
+    const callData = {
+      id: call.call_id,
+      pickupAddress: call.address,
+      serviceType: getServiceTypeLabel(call.service_type), // Traduzir tipo de serviço
+    };
+
+    setIncomingCallData(callData);
+    setShowIncomingCall(true);
+  }, [playNotificationSound]);
+
   // Rastreamento de localização em tempo real (apenas quando dashboard está em foco)
-  const locationState = useLocationTracking(token, isAuthenticated && isScreenFocused);
+  const locationState = useLocationTracking(
+    token,
+    isAuthenticated && isScreenFocused,
+    handleNewCall
+  );
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
 
@@ -150,26 +177,8 @@ export default function DashboardScreen() {
     useCallback(() => {
       setIsScreenFocused(true);
 
-      // SIMULAÇÃO: Mostrar chamado após 1 segundo (REMOVER EM PRODUÇÃO)
-      const simulationTimer = setTimeout(() => {
-        const fakeCall = {
-          id: 'SIMULATED-' + Date.now(),
-          clientName: 'João Silva',
-          clientPhone: '(62) 98765-4321',
-          pickupAddress: 'Av. Goiás, 1234 - Setor Central, Goiânia - GO',
-          deliveryAddress: 'Rua 10, 567 - Setor Oeste, Goiânia - GO',
-          distance: '8.5 km',
-          estimatedTime: '15 min',
-          serviceType: 'Reboque',
-          vehiclePlate: 'ABC-1234',
-        };
-        setIncomingCallData(fakeCall);
-        setShowIncomingCall(true);
-      }, 1000);
-
       return () => {
         setIsScreenFocused(false);
-        clearTimeout(simulationTimer);
       };
     }, [])
   );
@@ -396,7 +405,7 @@ export default function DashboardScreen() {
         callData={incomingCallData}
         onAccept={handleAcceptCall}
         onReject={handleRejectCall}
-        timeout={15}
+        timeout={60}
       />
     </View>
   );

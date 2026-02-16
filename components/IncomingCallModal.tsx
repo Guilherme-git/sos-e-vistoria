@@ -11,12 +11,12 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface CallData {
   id: string;
-  clientName: string;
-  clientPhone: string;
+  clientName?: string;
+  clientPhone?: string;
   pickupAddress: string;
   deliveryAddress?: string;
-  distance: string;
-  estimatedTime: string;
+  distance?: string;
+  estimatedTime?: string;
   serviceType: string;
   vehiclePlate?: string;
 }
@@ -45,7 +45,7 @@ function TimerRing({ timeLeft, total, isUrgent }: { timeLeft: number; total: num
           cx={TIMER_SIZE / 2}
           cy={TIMER_SIZE / 2}
           r={TIMER_RADIUS}
-          stroke="rgba(255,255,255,0.15)"
+          stroke={Colors.greyLight}
           strokeWidth={TIMER_STROKE}
           fill="none"
         />
@@ -53,7 +53,7 @@ function TimerRing({ timeLeft, total, isUrgent }: { timeLeft: number; total: num
           cx={TIMER_SIZE / 2}
           cy={TIMER_SIZE / 2}
           r={TIMER_RADIUS}
-          stroke={isUrgent ? '#FF6B6B' : Colors.white}
+          stroke={isUrgent ? Colors.error : Colors.primary}
           strokeWidth={TIMER_STROKE}
           fill="none"
           strokeDasharray={`${TIMER_CIRCUMFERENCE}`}
@@ -62,7 +62,7 @@ function TimerRing({ timeLeft, total, isUrgent }: { timeLeft: number; total: num
         />
       </Svg>
       <View style={timerStyles.textContainer}>
-        <Text style={[timerStyles.number, isUrgent && { color: '#FF6B6B' }]}>{timeLeft}</Text>
+        <Text style={[timerStyles.number, isUrgent && { color: Colors.error }]}>{timeLeft}</Text>
         <Text style={timerStyles.label}>seg</Text>
       </View>
     </View>
@@ -72,8 +72,8 @@ function TimerRing({ timeLeft, total, isUrgent }: { timeLeft: number; total: num
 const timerStyles = StyleSheet.create({
   container: { width: TIMER_SIZE, height: TIMER_SIZE, justifyContent: 'center', alignItems: 'center' },
   textContainer: { position: 'absolute', alignItems: 'center' },
-  number: { fontSize: 26, fontFamily: 'BeVietnamPro_700Bold', color: Colors.white, lineHeight: 30 },
-  label: { fontSize: 10, fontFamily: 'BeVietnamPro_400Regular', color: 'rgba(255,255,255,0.6)', marginTop: -2 },
+  number: { fontSize: 26, fontFamily: 'BeVietnamPro_700Bold', color: Colors.primary, lineHeight: 30 },
+  label: { fontSize: 10, fontFamily: 'BeVietnamPro_400Regular', color: Colors.textTertiary, marginTop: -2 },
 });
 
 function RoutePoint({ color, label, address, isLast }: { color: string; label: string; address: string; isLast?: boolean }) {
@@ -106,7 +106,7 @@ export default function IncomingCallModal({
   callData,
   onAccept,
   onReject,
-  timeout = 15,
+  timeout = 60,
 }: IncomingCallModalProps) {
   const insets = useSafeAreaInsets();
   const [timeLeft, setTimeLeft] = useState(timeout);
@@ -135,7 +135,7 @@ export default function IncomingCallModal({
   }, [visible, timeout]);
 
   useEffect(() => {
-    if (timeLeft <= 5 && timeLeft > 0) {
+    if (timeLeft <= 10 && timeLeft > 0) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   }, [timeLeft]);
@@ -146,7 +146,7 @@ export default function IncomingCallModal({
 
   if (!visible || !callData) return null;
 
-  const isUrgent = timeLeft <= 5;
+  const isUrgent = timeLeft <= 10;
 
   return (
     <Modal visible={visible} transparent animationType="none">
@@ -167,29 +167,37 @@ export default function IncomingCallModal({
             <TimerRing timeLeft={timeLeft} total={timeout} isUrgent={isUrgent} />
           </View>
 
-          <Animated.View entering={FadeIn.delay(150).duration(300)} style={styles.statsBar}>
-            <View style={styles.statItem}>
-              <MaterialIcons name="straighten" size={18} color={Colors.primary} />
-              <Text style={styles.statValue}>{callData.distance}</Text>
-              <Text style={styles.statLabel}>Distância</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <MaterialIcons name="schedule" size={18} color={Colors.primary} />
-              <Text style={styles.statValue}>{callData.estimatedTime}</Text>
-              <Text style={styles.statLabel}>Tempo est.</Text>
-            </View>
-            {callData.vehiclePlate && (
-              <>
-                <View style={styles.statDivider} />
+          {(callData.distance || callData.estimatedTime || callData.vehiclePlate) && (
+            <Animated.View entering={FadeIn.delay(150).duration(300)} style={styles.statsBar}>
+              {callData.distance && (
+                <>
+                  <View style={styles.statItem}>
+                    <MaterialIcons name="straighten" size={18} color={Colors.primary} />
+                    <Text style={styles.statValue}>{callData.distance}</Text>
+                    <Text style={styles.statLabel}>Distância</Text>
+                  </View>
+                  {(callData.estimatedTime || callData.vehiclePlate) && <View style={styles.statDivider} />}
+                </>
+              )}
+              {callData.estimatedTime && (
+                <>
+                  <View style={styles.statItem}>
+                    <MaterialIcons name="schedule" size={18} color={Colors.primary} />
+                    <Text style={styles.statValue}>{callData.estimatedTime}</Text>
+                    <Text style={styles.statLabel}>Tempo est.</Text>
+                  </View>
+                  {callData.vehiclePlate && <View style={styles.statDivider} />}
+                </>
+              )}
+              {callData.vehiclePlate && (
                 <View style={styles.statItem}>
                   <MaterialIcons name="directions-car" size={18} color={Colors.primary} />
                   <Text style={styles.statValue}>{callData.vehiclePlate}</Text>
                   <Text style={styles.statLabel}>Placa</Text>
                 </View>
-              </>
-            )}
-          </Animated.View>
+              )}
+            </Animated.View>
+          )}
 
           <Animated.View entering={FadeInUp.delay(250).duration(300)} style={styles.routeSection}>
             <RoutePoint color={Colors.primary} label="Origem" address={callData.pickupAddress} isLast={!callData.deliveryAddress} />
@@ -319,12 +327,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 24,
-    paddingTop: 8,
+    paddingTop: 20,
+    paddingBottom: 8,
   },
   rejectBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: Colors.background,
     borderWidth: 1.5,
     borderColor: Colors.greyLight,
@@ -333,13 +342,14 @@ const styles = StyleSheet.create({
   },
   acceptBtn: {
     flex: 1,
-    height: 56,
+    height: 60,
     borderRadius: 16,
     backgroundColor: Colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
+    paddingHorizontal: 24,
   },
   acceptText: {
     fontSize: 17,
